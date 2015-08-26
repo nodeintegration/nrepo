@@ -1,0 +1,55 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+use Config::General;
+use Getopt::Long;
+use Log::Dispatch;
+
+my $options = {
+  'config-file' => 'conf/nrepo.conf',
+};
+
+GetOptions(
+  $options,
+  'checksums',
+  'clonetag',
+  'config-file=s',
+  'force',
+  'init',
+  'list',
+  'log-level=s',
+  'mirror',
+  'repo=s',
+  'tag=s',
+);
+
+my $conf_o = Config::General->new(
+    -ConfigFile         => $options->{'config-file'},
+    -UseApacheInclude   => 1,
+    -IncludeDirectories => 1,
+    -IncludeGlob        => 1,
+    -IncludeRelative    => 1,
+    -IncludeAgain       => 1,
+    -AllowMultiOptions  => 0,
+);
+my $config = {$conf_o->getall};
+
+# Setup Logging
+my $log_file       = $config->{LogFile};
+my $log_file_level = $config->{LogFileLevel} || 'info';
+my $screen_level   = $config->{'ScreenLevel'} || 'notice';
+$screen_level      = $options->{'log-level'} if $options->{'log-level'};
+
+my $log_outputs = [[ 'Screen', 'min_level' => $screen_level, stderr => 0, newline => 1, ]];
+push @{$log_outputs}, [ 'File', 'min_level' => $log_file_level, filename => $log_file, newline => 1, mode => '>>'] if $log_file;
+my $logger = Log::Dispatch->new(outputs => $log_outputs);
+
+
+print $logger->debug('Config startup complete');
+use Data::Dumper;
+print Dumper $options;
+print Dumper $config;
+
+#my 
