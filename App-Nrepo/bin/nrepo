@@ -16,6 +16,7 @@ my $options = {
 
 GetOptions(
   $options,
+  'action=s',
   'checksums',
   'clonetag',
   'config-file=s',
@@ -29,38 +30,46 @@ GetOptions(
   'h|help',
 );
 
-pod2usage(-verbose=>2) if $options->{'h'} || $options->{'help'};
+pod2usage(-verbose=>2, -output => \*STDERR) if $options->{'h'} || $options->{'help'};
 sub validate_options {
   my $options = shift;
+  my $config  = shift;
 
-  # one of these options
-  if (
-    ! $options->{'mirror'} &&
-    ! $options->{'tag'} &&
-    ! $options->{'clonetag'} &&
-    ! $options->{'init'} &&
-    ! $options->{'add-files'} &&
-    ! $options->{'remove-files'} &&
-    ! $options->{'list'}
-  ) {
-    print "ERROR: no valid action provided\n";
-    pod2usage(-verbose=>2);
+  unless ($options->{'action'}) {
+    print "ERROR: no action provided\n";
+    pod2usage(-verbose=>2, -output => \*STDERR);
+  }
+  my $action = $options->{'action'};
+  my $valid_actions = {
+    'list'         => {requires => []},
+    'mirror'       => {requires => ['repo']},
+    'tag'          => {requires => ['repo']},
+    'clonetag'     => {requires => ['repo', 'tag']},
+    'init'         => {requires => ['repo']},
+    'add-files'    => {requires => ['repo']},
+    'remove-files' => {requires => ['repo']},
+  };
+
+  if (! $valid_actions->{$action}) {
+    print "ERROR: no action: ${action} not valid\n";
+    pod2usage(-verbose=>2,  -output => \*STDERR);
   }
 
-  for my $action (qw/mirror tag clonetag init add-files remove-files/) {
-    if (!$options->{'repo'}) {
-      print "ERROR: missing repo option for $action action\n";
-      pod2usage(-verbose=>2);
+  for my $require (@{$valid_actions->{$action}->{requires}}) {
+    if (! $options->{$require}) {
+      print "ERROR: option: ${require} missing for action: ${action}\n";
+      pod2usage(-verbose=>2, -output => \*STDERR);
     }
   }
 
-  if ($options->{'clonetag'} && ! $options->{'tag'}) {
-    print "ERROR: missing tag option for clonetag action\n";
-    pod2usage(-verbose=>2);
+  # Check that the supplied repo is configured
+  if ($options->{'repo'}) {
+    unless ($config->{'repo'}->{$options->{'repo'}}) {
+      print "ERROR: repo: $options->{'repo'} does not exist in configuration!\n";
+      pod2usage(-verbose=>2, -output => \*STDERR);
+    }
   }
 }
-validate_options($options);
-
 
 my $conf_o = Config::General->new(
     -ConfigFile         => $options->{'config-file'},
@@ -72,30 +81,26 @@ my $conf_o = Config::General->new(
     -AllowMultiOptions  => 0,
 );
 my $config = {$conf_o->getall};
+validate_options($options, $config);
 
 # Setup Default Config
-$config->{TagStyle}     ||= 'BottomDir';
-$config->{LogFileLevel} ||= 'info';
-$config->{ScreenLevel}  ||= 'notice';
+$config->{tag_style}      ||= 'bottomdir';
+$config->{log_file_level} ||= 'info';
+$config->{screen_level}   ||= 'notice';
 # We allow the cli to override the config for ScreenLevel
-$config->{ScreenLevel} = $options->{'log-level'} if $options->{'log-level'};
+$config->{screen_level} = $options->{'log-level'} if $options->{'log-level'};
 
 # Setup Logging
-my $log_file       = $config->{LogFile};
-my $log_file_level = $config->{LogFileLevel};
-my $screen_level   = $config->{'ScreenLevel'};
-$screen_level      = $options->{'log-level'} if $options->{'log-level'};
-
 my $log_outputs = [
-  [ 'Screen', 'min_level' => $config->{ScreenLevel}, stderr => 0, newline => 1, ]
+  [ 'Screen', 'min_level' => $config->{screen_level}, stderr => 0, newline => 1, ]
 ];
 push @{$log_outputs}, [
   'File',
-  'min_level' => $config->{LogFileLevel},
-  'filename'  => $config->{LogFile},
+  'min_level' => $config->{log_file_level},
+  'filename'  => $config->{log_file},
   'newline'   => 1,
   'mode'      => '>>',
-] if $config->{LogFile};
+] if $config->{log_file};
 my $logger = Log::Dispatch->new(outputs => $log_outputs);
 $logger->debug('logging initialized.');
 
@@ -110,26 +115,27 @@ nrepo - Repository Management
 
 =head1 SYNOPSIS
 
-nrepo [--repo|--list] [options]
+nrepo --action X [options]
 
  Actions:
-   --mirror         Mirror a configured repository (requires --repo, use \'all\' for all configured repositories)
-   --tag            Tag a repository (requires --repo)
-   --clonetag       Clones a tag in a repository (requires --repo and destination --tag)
-   --list           List all configured repositories
-   --init           Initialise a custom repository (requires --repo)
-   --add-files      Add files to a custom repository (requires --repo)
-   --remove-files   Remove files from a custom repository (requires --repo)
-   --help           This helpful message
+   mirror         Mirror a configured repository (requires --repo, use \'all\' for all configured repositories)
+   tag            Tag a repository (requires --repo)
+   clonetag       Clones a tag in a repository (requires --repo and destination --tag)
+   list           List all configured repositories
+   init           Initialise a custom repository (requires --repo)
+   add-files      Add files to a custom repository (requires --repo)
+   remove-files   Remove files from a custom repository (requires --repo)
 
- Optional parameters:
+ Options:
+   --repo           The name of the repo for your action
    --checksums      When mirroring a repository use checksums for downloaded packages rather than size
    --log-level      Change the stdout log level (overrides config)
+   --help           This helpful message
 
 =head1 Examples
 
-  nrepo --mirror --repo centos-6-epel
-  nrepo --tag release_20150827 --repo centos-6-epel
-  nrepo --clonetag release_20150827 --tag production
+  nrepo --action mirror --repo centos-6-epel
+  nrepo --action tag release_20150827 --repo centos-6-epel
+  nrepo --action clonetag release_20150827 --tag production
 
 
