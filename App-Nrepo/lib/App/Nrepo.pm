@@ -1,7 +1,8 @@
-package App::Nrepo;
-
 use strict;
 use warnings FATAL => 'all';
+
+package App::Nrepo;
+
 use Moo;
 use Carp;
 use namespace::clean;
