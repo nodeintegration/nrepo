@@ -6,6 +6,9 @@ use warnings;
 use Config::General;
 use Getopt::Long;
 use Log::Dispatch;
+use Pod::Usage;
+
+use App::Nrepo;
 
 my $options = {
   'config-file' => 'conf/nrepo.conf',
@@ -23,7 +26,41 @@ GetOptions(
   'mirror',
   'repo=s',
   'tag=s',
+  'h|help',
 );
+
+pod2usage(-verbose=>2) if $options->{'h'} || $options->{'help'};
+sub validate_options {
+  my $options = shift;
+
+  # one of these options
+  if (
+    ! $options->{'mirror'} &&
+    ! $options->{'tag'} &&
+    ! $options->{'clonetag'} &&
+    ! $options->{'init'} &&
+    ! $options->{'add-files'} &&
+    ! $options->{'remove-files'} &&
+    ! $options->{'list'}
+  ) {
+    print "ERROR: no valid action provided\n";
+    pod2usage(-verbose=>2);
+  }
+
+  for my $action (qw/mirror tag clonetag init add-files remove-files/) {
+    if (!$options->{'repo'}) {
+      print "ERROR: missing repo option for $action action\n";
+      pod2usage(-verbose=>2);
+    }
+  }
+
+  if ($options->{'clonetag'} && ! $options->{'tag'}) {
+    print "ERROR: missing tag option for clonetag action\n";
+    pod2usage(-verbose=>2);
+  }
+}
+validate_options($options);
+
 
 my $conf_o = Config::General->new(
     -ConfigFile         => $options->{'config-file'},
@@ -36,20 +73,63 @@ my $conf_o = Config::General->new(
 );
 my $config = {$conf_o->getall};
 
+# Setup Default Config
+$config->{TagStyle}     ||= 'BottomDir';
+$config->{LogFileLevel} ||= 'info';
+$config->{ScreenLevel}  ||= 'notice';
+# We allow the cli to override the config for ScreenLevel
+$config->{ScreenLevel} = $options->{'log-level'} if $options->{'log-level'};
+
 # Setup Logging
 my $log_file       = $config->{LogFile};
-my $log_file_level = $config->{LogFileLevel} || 'info';
-my $screen_level   = $config->{'ScreenLevel'} || 'notice';
+my $log_file_level = $config->{LogFileLevel};
+my $screen_level   = $config->{'ScreenLevel'};
 $screen_level      = $options->{'log-level'} if $options->{'log-level'};
 
-my $log_outputs = [[ 'Screen', 'min_level' => $screen_level, stderr => 0, newline => 1, ]];
-push @{$log_outputs}, [ 'File', 'min_level' => $log_file_level, filename => $log_file, newline => 1, mode => '>>'] if $log_file;
+my $log_outputs = [
+  [ 'Screen', 'min_level' => $config->{ScreenLevel}, stderr => 0, newline => 1, ]
+];
+push @{$log_outputs}, [
+  'File',
+  'min_level' => $config->{LogFileLevel},
+  'filename'  => $config->{LogFile},
+  'newline'   => 1,
+  'mode'      => '>>',
+] if $config->{LogFile};
 my $logger = Log::Dispatch->new(outputs => $log_outputs);
+$logger->debug('logging initialized.');
+
+my $a = App::Nrepo->new(config => $config, logger => $logger);
+$a->go($options);
+
+__END__
+
+=head1 NAME
+
+nrepo - Repository Management
+
+=head1 SYNOPSIS
+
+nrepo [--repo|--list] [options]
+
+ Actions:
+   --mirror         Mirror a configured repository (requires --repo, use \'all\' for all configured repositories)
+   --tag            Tag a repository (requires --repo)
+   --clonetag       Clones a tag in a repository (requires --repo and destination --tag)
+   --list           List all configured repositories
+   --init           Initialise a custom repository (requires --repo)
+   --add-files      Add files to a custom repository (requires --repo)
+   --remove-files   Remove files from a custom repository (requires --repo)
+   --help           This helpful message
+
+ Optional parameters:
+   --checksums      When mirroring a repository use checksums for downloaded packages rather than size
+   --log-level      Change the stdout log level (overrides config)
+
+=head1 Examples
+
+  nrepo --mirror --repo centos-6-epel
+  nrepo --tag release_20150827 --repo centos-6-epel
+  nrepo --clonetag release_20150827 --tag production
 
 
-print $logger->debug('Config startup complete');
-use Data::Dumper;
-print Dumper $options;
-print Dumper $config;
-
-#my 
