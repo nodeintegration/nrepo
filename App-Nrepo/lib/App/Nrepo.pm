@@ -118,12 +118,12 @@ sub mirror {
     checksums => { type => BOOLEAN, optional => 1, },
   });
 
-  my $type = $self->config->{'repo'}->{$o{'repo'}}->{'type'};
   my $r = App::Nrepo::Repo->new(
-    type => $type,
-    repo => $o{'repo'},
-    type => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
-    dir  => $self->get_repo_dir(repo => $o{'repo'}),
+    logger  => $self->logger(),
+    repo    => $o{'repo'},
+    type    => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
+    backend => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
+    dir     => $self->get_repo_dir(repo => $o{'repo'}),
   );
 
   $r->mirror(
