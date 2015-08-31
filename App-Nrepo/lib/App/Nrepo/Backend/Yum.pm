@@ -16,21 +16,22 @@ sub get_metadata {
   });
 
   print "DEBUG: get_metadata from App::Nrepo::Backend::Yum\n";
+  my $arch = $self->arch();
   my $metadata_dir = 'repodata';
-  my $file_dir = File::Spec->catdir($self->dir(), $metadata_dir);
+  my $dest_dir = File::Spec->catdir($self->dir(), $arch, $metadata_dir);
   my @metadata_files = qw(repomd.xml);
   for my $file (@metadata_files) {
-    my $file_url = $o{url} . '/'. $file;
-    unless (-d $file_dir) {
+    my $file_url = join('/', ($o{url}, $arch, $metadata_dir, $file));
+    unless (-d $dest_dir) {
       my $err;
-      make_path($file_dir, error => \$err);
-      $self->logger->log_and_croak(level => 'error', message => "Failed to create path: ${file_dir} with error: ${err}") if $err;
+      make_path($dest_dir, error => \$err);
+      $self->logger->log_and_croak(level => 'error', message => "Failed to create path: ${dest_dir} with error: ${err}") if $err;
     }
-    my $dest_file = File::Spec->catfile($file_dir, $file);
+    my $dest_file = File::Spec->catfile($dest_dir, $file);
     $self->download_binary_file(url => $file_url, dest => $dest_file);
 
     if ($file eq 'repomd.xml') {
-      my $xml = XMLin($file, ForceArray => 1);
+      my $xml = XMLin($dest_file, ForceArray => 1);
       print Dumper $xml;
     }
   }

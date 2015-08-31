@@ -121,7 +121,7 @@ sub mirror {
   my $r = App::Nrepo::Repo->new(
     logger  => $self->logger(),
     repo    => $o{'repo'},
-    type    => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
+    arch    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
     backend => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
     dir     => $self->get_repo_dir(repo => $o{'repo'}),
   );

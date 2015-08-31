@@ -13,7 +13,7 @@ use Time::HiRes qw(gettimeofday tv_interval);
 has logger   => ( is => 'ro', required => 1 );
 has repo     => ( is => 'ro', required => 1 );
 has dir      => ( is => 'ro', required => 1 );
-has type     => ( is => 'ro', requierd => 1 );
+has arch     => ( is => 'ro', required => 1 );
 has ua       => ( is => 'lazy' );
 has _backend => (
     is        => 'rwp',
@@ -86,14 +86,14 @@ sub download_binary_file {
   while (!$success && $retry_count <= $retry_limit) {
 
     my $t0 = [gettimeofday];
-    my $res = $self->ua->get($o{'url'}, content_file => $o{'dest'});
+    my $res = $self->ua->get($o{'url'}, ':content_file' => $o{'dest'});
     my $elapsed = tv_interval($t0);
     $self->logger->debug("download_binary_file: $o{url} took: ${elapsed}");
     if ($res->is_success) {
       return 1;
     }
     else {
-      $self->logger->debug("download_binary_file: $o{url} failed with status: $res->status_line");
+      $self->logger->debug("download_binary_file: $o{url} failed with status: " . $res->status_line);
       $retry_count++;
       if ($retry_count <= $retry_limit) {
         $self->logger->debug("download_binary_file: $o{url} retrying") if $retry_count;
