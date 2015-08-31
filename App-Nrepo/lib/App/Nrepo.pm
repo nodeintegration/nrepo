@@ -1,6 +1,3 @@
-use strict;
-use warnings FATAL => 'all';
-
 package App::Nrepo;
 
 use Moo;
@@ -121,12 +118,17 @@ sub mirror {
     checksums => { type => BOOLEAN, optional => 1, },
   });
 
-  App::Nrepo::Repo->mirror(
-      repo       => $o{'repo'},
-      type       => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
-      url        => $self->config->{'repo'}->{$o{'repo'}}->{'url'},
-      dir        => $self->get_repo_dir(repo => $o{'repo'}),
-      checksums  => $o{'checksums'},
+  my $type = $self->config->{'repo'}->{$o{'repo'}}->{'type'};
+  my $r = App::Nrepo::Repo->new(
+    type => $type,
+    repo => $o{'repo'},
+    type => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
+    dir  => $self->get_repo_dir(repo => $o{'repo'}),
+  );
+
+  $r->mirror(
+    url        => $self->config->{'repo'}->{$o{'repo'}}->{'url'},
+    checksums  => $o{'checksums'},
   );
 }
 
