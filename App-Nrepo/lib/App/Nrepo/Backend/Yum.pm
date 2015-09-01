@@ -7,7 +7,6 @@ use File::Path qw(make_path);
 use File::Basename qw(basename);
 use Params::Validate qw(:all);
 use Data::Dumper qw(Dumper);
-#use XML::Simple qw(XMLin);
 use XML::Twig;
 
 #with('App::Nrepo::Backend');
@@ -21,7 +20,6 @@ sub get_metadata {
   print "DEBUG: get_metadata from App::Nrepo::Backend::Yum\n";
   my $arch     = $self->arch();
   my $base_dir = File::Spec->catdir($self->dir(), $arch);
-
   my $packages;
 
   my @metadata_files = ({type => 'repomd', location => 'repodata/repomd.xml'});
@@ -41,18 +39,19 @@ sub get_metadata {
     # Grab the file
     $self->download_binary_file(url => $m_url, dest => $dest_file);
 
+    # XXX Separate this
     # Parse the xml and retrieve the primary file location
     if ($type eq 'repomd') {
       my $twig = XML::Twig->new(TwigRoots => {data => 1});
       $twig->parsefile($dest_file);
       my $root = $twig->root;
       my @e = $root->children();
-      my $location;
-      #my $checksum;
-      #my $size;
       for my $e (@e) {
+        my $location;
+        #my $checksum;
+        #my $size;
         my $data_type = $e->att('type');
-        next unless $data_type eq 'primary';
+        #next unless $data_type eq 'primary';
         for my $c ($e->children()) {
           if ($c->name eq 'location') {
             $location = $c->att('href');
@@ -64,29 +63,52 @@ sub get_metadata {
           #  $size = $c->text;
           #}
         }
-        last;
+        push @metadata_files, {'type' => $data_type, location => $location};
       }
-      $self->logger->log_and_croak(level => 'error', message => "repomd.xml not valid: $dest_file") unless $location;
-      push @metadata_files, {'type' => 'primary', location => $location};
+      #$self->logger->log_and_croak(level => 'error', message => "repomd.xml not valid: $dest_file") unless $location;
     }
 
     # Parse the primary metadata file
     # XXX Add some exceptions
     if ($type eq 'primary') {
-      print "DEBUG: HERE!!!\n";
-      my $contents = $self->parse_xml_gzip_file($dest_file);
-      print Dumper $contents;
-      #$packages = $self->parse_primary(xml => XMLin($dest_file, ForceArray => 1));
-      #$packages = $self->parse_primary(xml => $self->parse_xml($contents));
+      my $contents = $self->get_gzip_contents($dest_file);
+      $packages = $self->parse_primary($contents);
+      for my $package (@{$packages}) {
+        print "DEBUG: need to get package: " . $package->{'name'} . $/;
+      }
     }
   }
+  return $packages;
 }
 sub parse_primary {
   my $self = shift;
-  my %o = validate(@_, {
-    xml => { type => HASHREF },
-  });
-  print Dumper $o{'xml'};
+  my $xml  = shift;
+
+  my $packages = [];
+  my $twig = XML::Twig->new(TwigRoots => {package => 1});
+  $twig->parse($xml);
+  my $root = $twig->root;
+  my @e = $root->children();
+  for my $e (@e) {
+    my $data = {};
+    for my $c ($e->children()) {
+      if ($c->name eq 'location') {
+        $data->{'location'} = $c->att('href');
+      }
+      elsif ($c->name eq 'name') {
+        $data->{'name'} = $c->text;
+      }
+      elsif ($c->name eq 'checksum') {
+        $data->{'checksum'}->{'type'} = $c->att('type');
+        $data->{'checksum'}->{'value'} = $c->text;
+      }
+      elsif ($c->name eq 'size'){
+        $data->{'size'} = $c->att('package');
+      }
+    }
+    push @{$packages}, $data;
+  }
+  return $packages;
 }
 sub parse_metadata {
   my $self = shift;
@@ -94,7 +116,32 @@ sub parse_metadata {
 }
 sub get_packages {
   my $self = shift;
+  my %o = validate(@_, {
+    url      => { type => SCALAR },
+    packages => { type => ARRAYREF },
+  });
+
   print "DEBUG: get_packages from App::Nrepo::Backend::Yum\n";
+  my $arch     = $self->arch();
+  my $base_dir = File::Spec->catdir($self->dir(), $arch);
+
+  for my $package (@{$o{'packages'}}) {
+    #XXX
+    my $name      = $package->{'name'};
+    my $size      = $package->{'size'};
+    my $location  = $package->{'location'};
+    my $p_url     = join('/', ($o{'url'}, $arch, $location));
+    my $dest_file = File::Spec->catfile($base_dir, $location);
+    my $dest_dir  = basename($dest_file);
+    # Setup the destination dir if needed
+    unless (-d $dest_dir) {
+      my $err;
+      make_path($base_dir, $dest_dir, error => \$err);
+      $self->logger->log_and_croak(level => 'error', message => "Failed to create path: ${dest_dir} with error: ${err}") if $err;
+    }
+    # Grab the file
+    $self->download_binary_file(url => $p_url, dest => $dest_file);
+  }
 }
 sub add_files {
   my $self = shift;

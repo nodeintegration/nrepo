@@ -47,7 +47,7 @@ sub _build_ua {
   return LWP::UserAgent->new(%o);
 }
 
-sub parse_xml_gzip_file {
+sub get_gzip_contents {
   my $self = shift;
   my $file = shift;
 
@@ -62,7 +62,7 @@ sub parse_xml_gzip_file {
 
         my @contents = <$fh>;
         $fh->close;
-        return join("\n", @contents);
+        return join('', @contents);
     }
   }
 }
@@ -80,8 +80,8 @@ sub mirror {
   });
 
   print "DEBUG: url: $o{url} dir: " . $self->dir() . "\n";
-  $self->get_metadata(url => $o{url});
-  $self->get_packages(url => $o{url});
+  my $packages = $self->get_metadata(url => $o{url});
+  $self->get_packages(url => $o{url}, packages => $packages);
 
 }
 sub init {
