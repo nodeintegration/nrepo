@@ -2,10 +2,13 @@ package App::Nrepo::Backend::Yum;
 
 use Moo::Role;
 use Carp;
+use IO::Zlib;
 use File::Path qw(make_path);
+use File::Basename qw(basename);
 use Params::Validate qw(:all);
 use Data::Dumper qw(Dumper);
-use XML::Simple qw(XMLin);
+#use XML::Simple qw(XMLin);
+use XML::Twig;
 
 #with('App::Nrepo::Backend');
 
@@ -16,26 +19,74 @@ sub get_metadata {
   });
 
   print "DEBUG: get_metadata from App::Nrepo::Backend::Yum\n";
-  my $arch = $self->arch();
-  my $metadata_dir = 'repodata';
-  my $dest_dir = File::Spec->catdir($self->dir(), $arch, $metadata_dir);
-  my @metadata_files = qw(repomd.xml);
-  for my $file (@metadata_files) {
-    my $file_url = join('/', ($o{url}, $arch, $metadata_dir, $file));
+  my $arch     = $self->arch();
+  my $base_dir = File::Spec->catdir($self->dir(), $arch);
+
+  my $packages;
+
+  my @metadata_files = ({type => 'repomd', location => 'repodata/repomd.xml'});
+  for my $m (@metadata_files) {
+    my $type      = $m->{'type'};
+    my $location  = $m->{'location'};
+    my $m_url     = join('/', ($o{url}, $arch, $location));
+    my $dest_file = File::Spec->catfile($base_dir, $location);
+    my $dest_dir  = basename($dest_file);
+    # Setup the destination dir if needed
     unless (-d $dest_dir) {
       my $err;
-      make_path($dest_dir, error => \$err);
+      make_path($base_dir, $dest_dir, error => \$err);
       $self->logger->log_and_croak(level => 'error', message => "Failed to create path: ${dest_dir} with error: ${err}") if $err;
     }
-    my $dest_file = File::Spec->catfile($dest_dir, $file);
-    $self->download_binary_file(url => $file_url, dest => $dest_file);
 
-    if ($file eq 'repomd.xml') {
-      my $xml = XMLin($dest_file, ForceArray => 1);
-      print Dumper $xml;
+    # Grab the file
+    $self->download_binary_file(url => $m_url, dest => $dest_file);
+
+    # Parse the xml and retrieve the primary file location
+    if ($type eq 'repomd') {
+      my $twig = XML::Twig->new(TwigRoots => {data => 1});
+      $twig->parsefile($dest_file);
+      my $root = $twig->root;
+      my @e = $root->children();
+      my $location;
+      #my $checksum;
+      #my $size;
+      for my $e (@e) {
+        my $data_type = $e->att('type');
+        next unless $data_type eq 'primary';
+        for my $c ($e->children()) {
+          if ($c->name eq 'location') {
+            $location = $c->att('href');
+          }
+          #elsif ($c->name eq 'checksum') {
+          #  $checksum = $c->att('type');
+          #}
+          #elsif ($c->name eq 'size'){
+          #  $size = $c->text;
+          #}
+        }
+        last;
+      }
+      $self->logger->log_and_croak(level => 'error', message => "repomd.xml not valid: $dest_file") unless $location;
+      push @metadata_files, {'type' => 'primary', location => $location};
+    }
+
+    # Parse the primary metadata file
+    # XXX Add some exceptions
+    if ($type eq 'primary') {
+      print "DEBUG: HERE!!!\n";
+      my $contents = $self->parse_xml_gzip_file($dest_file);
+      print Dumper $contents;
+      #$packages = $self->parse_primary(xml => XMLin($dest_file, ForceArray => 1));
+      #$packages = $self->parse_primary(xml => $self->parse_xml($contents));
     }
   }
-
+}
+sub parse_primary {
+  my $self = shift;
+  my %o = validate(@_, {
+    xml => { type => HASHREF },
+  });
+  print Dumper $o{'xml'};
 }
 sub parse_metadata {
   my $self = shift;

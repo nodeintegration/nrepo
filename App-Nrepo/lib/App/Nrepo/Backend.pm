@@ -9,6 +9,7 @@ use Module::Runtime qw[ compose_module_name ];
 use namespace::clean;
 use Params::Validate qw(:all);
 use Time::HiRes qw(gettimeofday tv_interval);
+use XML::LibXML;
 
 has logger   => ( is => 'ro', required => 1 );
 has repo     => ( is => 'ro', required => 1 );
@@ -44,6 +45,31 @@ sub _build_ua {
   $o{ssl_opts}->{'SSL_cert_file'} = $self->ssl_cert() if $self->can('ssl_cert');
   $o{ssl_opts}->{'SSL_key_file'}  = $self->ssl_key()  if $self->can('ssl_key');
   return LWP::UserAgent->new(%o);
+}
+
+sub parse_xml_gzip_file {
+  my $self = shift;
+  my $file = shift;
+
+  if (-f $file) {
+    {
+        my $fh = IO::Zlib->new($file, 'rb');
+
+        #XXX for some reason this does not work
+        #local $/ = undef;
+        #my $contents = <$fh>;
+        #return $contents;
+
+        my @contents = <$fh>;
+        $fh->close;
+        return join("\n", @contents);
+    }
+  }
+}
+sub parse_xml {
+  my $self = shift;
+  my $xml  = shift;
+  return XML::LibXML->load_xml(string => $xml);
 }
 
 sub mirror {
