@@ -12,7 +12,6 @@ use XML::Twig;
 sub get_metadata {
   my $self = shift;
 
-  print "DEBUG: get_metadata from App::Nrepo::Backend::Yum\n";
   my $arch     = $self->arch();
   my $base_dir = File::Spec->catdir($self->dir(), $arch);
   my $packages;
@@ -105,10 +104,6 @@ sub parse_primary {
     push @{$packages}, $data;
   }
   return $packages;
-}
-sub parse_metadata {
-  my $self = shift;
-  print "DEBUG: parse_metadata from App::Nrepo::Backend::Yum\n";
 }
 sub get_packages {
   my $self = shift;
