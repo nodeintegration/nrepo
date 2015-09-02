@@ -31,7 +31,6 @@ sub get_metadata {
     # Grab the file
     $self->download_binary_file(url => $m_url, dest => $dest_file);
 
-    print Dumper $m;
     # Parse the xml and retrieve the primary file location
     if ($type eq 'repomd') {
       my $data = $self->parse_repomd($dest_file);
@@ -74,7 +73,6 @@ sub parse_repomd {
     $self->logger->log_and_croak(level => 'error', message => "repomd xml not valid: $file") unless $data->{'location'};
     push @files, $data;
   }
-
 
   return \@files;
 }
@@ -123,7 +121,6 @@ sub get_packages {
   my $base_dir = File::Spec->catdir($self->dir(), $arch);
 
   for my $package (@{$o{'packages'}}) {
-    #XXX
     my $name     = $package->{'name'};
     my $size     = $package->{'size'};
     my $location = $package->{'location'};
@@ -133,25 +130,23 @@ sub get_packages {
     my $dest_file = File::Spec->catfile($base_dir, $location);
     my $dest_dir  = dirname($dest_file);
 
-    # Setup the destination dir if needed
-    unless (-d $dest_dir) {
-      my $err;
-      make_path($base_dir, $dest_dir, error => \$err);
-      $self->logger->log_and_croak(level => 'error', message => "Failed to create path: ${dest_dir} with error: ${err}") if $err;
-    }
+    # Make sure dir exists
+    $self->make_dir($dest_dir);
+
     # Check if we have the local file
-    my $get_file;
+    my $download;
     if ($self->force) {
-      $get_file++;
+      $download++;
     }
     elsif ($self->checksums) {
-      $get_file++ unless $self->validate_file(filename => $dest_file, check => $checksum->{'type'}, value => $checksum->{'value'});
+      $download++ unless $self->validate_file(filename => $dest_file, check => $checksum->{'type'}, value => $checksum->{'value'});
     }
     else {
-      $get_file++ unless $self->validate_file(filename => $dest_file, check => 'size', value => $size);
+      $download++ unless $self->validate_file(filename => $dest_file, check => 'size', value => $size);
     }
+
     # Grab the file
-    if ($get_file) {
+    if ($download) {
       $self->download_binary_file(url => $p_url, dest => $dest_file);
     }
     else {
