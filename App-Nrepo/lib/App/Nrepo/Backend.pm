@@ -11,12 +11,15 @@ use Params::Validate qw(:all);
 use Time::HiRes qw(gettimeofday tv_interval);
 use XML::LibXML;
 
-has logger   => ( is => 'ro', required => 1 );
-has repo     => ( is => 'ro', required => 1 );
-has dir      => ( is => 'ro', required => 1 );
-has arch     => ( is => 'ro', required => 1 );
-has ua       => ( is => 'lazy' );
-has _backend => (
+has logger    => ( is => 'ro', required => 1 );
+has repo      => ( is => 'ro', required => 1 );
+has dir       => ( is => 'ro', required => 1 );
+has url       => ( is => 'ro', optional => 1 );
+has checksums => ( is => 'ro', optional => 1 );
+has force     => ( is => 'ro', optional => 1 );
+has arch      => ( is => 'ro', required => 1 );
+has ua        => ( is => 'lazy' );
+has _backend  => (
     is        => 'rwp',
     predicate => 1,
     init_arg  => 'backend',
@@ -66,22 +69,46 @@ sub get_gzip_contents {
     }
   }
 }
-sub parse_xml {
+
+sub validate_file {
   my $self = shift;
-  my $xml  = shift;
-  return XML::LibXML->load_xml(string => $xml);
+  my %o = validate(@_, {
+    filename => { type => SCALAR },
+    check    => { type => SCALAR },
+    value    => { type => SCALAR },
+  });
+
+  return 0 unless -f $o{'filename'};
+
+  if ($o{'check'} eq 'size') {
+    return $self->_validate_file_size(filename => $o{'filename'}, size => $o{'value'});
+  }
+  elsif ($o{'check'} eq 'sha256') {
+    #XXX TODO
+    return $self->_validate_file_sha256(%o);
+  }
+}
+
+sub _validate_file_size {
+  my $self = shift;
+  my %o = validate(@_, {
+    filename => { type => SCALAR },
+    size     => { type => SCALAR },
+  });
+
+  my @stats = stat($o{'filename'});
+  my $file_size = $stats[7];
+
+  return $file_size eq $o{'size'} ? 1 : undef;
 }
 
 sub mirror {
   my $self = shift;
-  my %o = validate(@_, {
-    url       => { type => SCALAR },
-    checksums => { type => BOOLEAN, optional => 1, },
-  });
 
-  print "DEBUG: url: $o{url} dir: " . $self->dir() . "\n";
-  my $packages = $self->get_metadata(url => $o{url});
-  $self->get_packages(url => $o{url}, packages => $packages);
+  $self->logger->debug(sprintf("mirror: starting repo: %s from url: %s to dir: %s", $self->repo, $self->url, $self->dir));
+
+  my $packages = $self->get_metadata();
+  $self->get_packages(packages => $packages);
 
 }
 sub init {

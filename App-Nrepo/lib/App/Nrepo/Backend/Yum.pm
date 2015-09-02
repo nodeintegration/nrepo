@@ -4,18 +4,13 @@ use Moo::Role;
 use Carp;
 use IO::Zlib;
 use File::Path qw(make_path);
-use File::Basename qw(basename);
+use File::Basename qw(dirname);
 use Params::Validate qw(:all);
 use Data::Dumper qw(Dumper);
 use XML::Twig;
 
-#with('App::Nrepo::Backend');
-
 sub get_metadata {
   my $self = shift;
-  my %o = validate(@_, {
-    url => { type => SCALAR },
-  });
 
   print "DEBUG: get_metadata from App::Nrepo::Backend::Yum\n";
   my $arch     = $self->arch();
@@ -26,14 +21,15 @@ sub get_metadata {
   for my $m (@metadata_files) {
     my $type      = $m->{'type'};
     my $location  = $m->{'location'};
-    my $m_url     = join('/', ($o{url}, $arch, $location));
+    my $m_url     = join('/', ($self->url, $arch, $location));
     my $dest_file = File::Spec->catfile($base_dir, $location);
-    my $dest_dir  = basename($dest_file);
+    my $dest_dir  = dirname($dest_file);
     # Setup the destination dir if needed
-    unless (-d $dest_dir) {
+    if (! -d $dest_dir) {
       my $err;
-      make_path($base_dir, $dest_dir, error => \$err);
+      my $dirs = make_path($dest_dir, error => \$err);
       $self->logger->log_and_croak(level => 'error', message => "Failed to create path: ${dest_dir} with error: ${err}") if $err;
+      $self->logger->debug("Created path: ${dest_dir}");
     }
 
     # Grab the file
@@ -73,9 +69,6 @@ sub get_metadata {
     if ($type eq 'primary') {
       my $contents = $self->get_gzip_contents($dest_file);
       $packages = $self->parse_primary($contents);
-      for my $package (@{$packages}) {
-        print "DEBUG: need to get package: " . $package->{'name'} . $/;
-      }
     }
   }
   return $packages;
@@ -117,7 +110,6 @@ sub parse_metadata {
 sub get_packages {
   my $self = shift;
   my %o = validate(@_, {
-    url      => { type => SCALAR },
     packages => { type => ARRAYREF },
   });
 
@@ -127,20 +119,39 @@ sub get_packages {
 
   for my $package (@{$o{'packages'}}) {
     #XXX
-    my $name      = $package->{'name'};
-    my $size      = $package->{'size'};
-    my $location  = $package->{'location'};
-    my $p_url     = join('/', ($o{'url'}, $arch, $location));
+    my $name     = $package->{'name'};
+    my $size     = $package->{'size'};
+    my $location = $package->{'location'};
+    my $checksum = $package->{'checksum'};
+
+    my $p_url     = join('/', ($self->url, $arch, $location));
     my $dest_file = File::Spec->catfile($base_dir, $location);
-    my $dest_dir  = basename($dest_file);
+    my $dest_dir  = dirname($dest_file);
+
     # Setup the destination dir if needed
     unless (-d $dest_dir) {
       my $err;
       make_path($base_dir, $dest_dir, error => \$err);
       $self->logger->log_and_croak(level => 'error', message => "Failed to create path: ${dest_dir} with error: ${err}") if $err;
     }
+    # Check if we have the local file
+    my $get_file;
+    if ($self->force) {
+      $get_file++;
+    }
+    elsif ($self->checksums) {
+      $get_file++ unless $self->validate_file(filename => $dest_file, check => $checksum->{'type'}, value => $checksum->{'value'});
+    }
+    else {
+      $get_file++ unless $self->validate_file(filename => $dest_file, check => 'size', value => $size);
+    }
     # Grab the file
-    $self->download_binary_file(url => $p_url, dest => $dest_file);
+    if ($get_file) {
+      $self->download_binary_file(url => $p_url, dest => $dest_file);
+    }
+    else {
+      $self->logger->debug("get_packages: skipping package: ${name} as its deemed up to date");
+    }
   }
 }
 sub add_files {

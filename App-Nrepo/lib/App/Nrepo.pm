@@ -119,17 +119,16 @@ sub mirror {
   });
 
   my $r = App::Nrepo::Repo->new(
-    logger  => $self->logger(),
-    repo    => $o{'repo'},
-    arch    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
-    backend => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
-    dir     => $self->get_repo_dir(repo => $o{'repo'}),
+    logger    => $self->logger(),
+    repo      => $o{'repo'},
+    arch      => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
+    url       => $self->config->{'repo'}->{$o{'repo'}}->{'url'},
+    checksums => $o{'checksums'},
+    backend   => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
+    dir       => $self->get_repo_dir(repo => $o{'repo'}),
   );
 
-  $r->mirror(
-    url        => $self->config->{'repo'}->{$o{'repo'}}->{'url'},
-    checksums  => $o{'checksums'},
-  );
+  $r->mirror();
 }
 
 
