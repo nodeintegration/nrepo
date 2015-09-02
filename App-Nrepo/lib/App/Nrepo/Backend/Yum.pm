@@ -37,7 +37,6 @@ sub get_metadata {
     }
 
     # Parse the primary metadata file
-    # XXX Add some exceptions
     if ($type eq 'primary') {
       my $contents = $self->get_gzip_contents($dest_file);
       $packages = $self->parse_primary($contents);
@@ -45,6 +44,7 @@ sub get_metadata {
   }
   return $packages;
 }
+
 sub parse_repomd {
   my $self = shift;
   my $file = shift;
