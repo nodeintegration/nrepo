@@ -30,15 +30,14 @@ has _backend  => (
 # generic dynamic backend composition
 sub _backend_compose {
     my ( $self, $req ) = @_;
-    my $module = compose_module_name( "App::Nrepo::Backend", $req );
-    croak( "unknown backend ($module)\n" )
-      unless defined module_path( $module );
+    my $module = compose_module_name( 'App::Nrepo::Backend', $req );
+    croak( "unknown backend ($module)\n" ) unless defined module_path( $module );
     Moo::Role->apply_roles_to_object( $self, $module );
     return;
 }
 
 sub backend {
-  $_[0]->_set__backend( $_[1] ) if defined $_[1] && ! $_[0]->_has_backend
+  $_[0]->_set__backend( $_[1] ) if defined $_[1] && ! $_[0]->_has_backend;
 }
 
 sub _build_ua {
@@ -48,6 +47,7 @@ sub _build_ua {
   $o{ssl_opts}->{'SSL_ca_file'}   = $self->ssl_ca()   if $self->can('ssl_ca');
   $o{ssl_opts}->{'SSL_cert_file'} = $self->ssl_cert() if $self->can('ssl_cert');
   $o{ssl_opts}->{'SSL_key_file'}  = $self->ssl_key()  if $self->can('ssl_key');
+
   return LWP::UserAgent->new(%o);
 }
 
@@ -85,7 +85,6 @@ sub validate_file {
     return $self->_validate_file_size($o{'filename'}, $o{'value'});
   }
   elsif ($o{'check'} eq 'sha256') {
-    #XXX TODO
     return $self->_validate_file_sha256($o{'filename'}, $o{'value'});
   }
 }
@@ -120,6 +119,8 @@ sub mirror {
   $self->get_packages(packages => $packages);
 
 }
+
+#XXX TODO
 sub init {
   my $self = shift;
   #$plugin->init();
@@ -133,11 +134,7 @@ sub download_binary_file {
     url         => { type => SCALAR },
     dest        => { type => SCALAR },
     retry_limit => { type => SCALAR, default => 3 },
-    #cert        => { type => SCALAR, optional => 1 }, #XXX TODO
-    #ca          => { type => SCALAR, optional => 1 }, #XXX TODO
-    #key         => { type => SCALAR, optional => 1 }, #XXX TODO
   });
-
 
   $self->logger->debug("download_binary_file: $o{url} -> $o{dest}");
 
@@ -146,11 +143,12 @@ sub download_binary_file {
   my $success;
 
   while (!$success && $retry_count <= $retry_limit) {
-
     my $t0 = [gettimeofday];
     my $res = $self->ua->get($o{'url'}, ':content_file' => $o{'dest'});
     my $elapsed = tv_interval($t0);
+
     $self->logger->debug("download_binary_file: $o{url} took: ${elapsed}");
+
     if ($res->is_success) {
       return 1;
     }
@@ -166,9 +164,6 @@ sub download_binary_file {
       }
     }
   }
-}
-sub get_packages {
-  print "DEBUG: get_packages from App::Nrepo::Repo\n";
 }
 
 1;
