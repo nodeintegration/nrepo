@@ -27,6 +27,10 @@ has _backend  => (
     trigger   => sub { $_[0]->_backend_compose($_[1]) },
 );
 
+sub backend {
+  $_[0]->_set__backend( $_[1] ) if defined $_[1] && ! $_[0]->_has_backend;
+}
+
 # generic dynamic backend composition
 sub _backend_compose {
     my ( $self, $req ) = @_;
@@ -34,10 +38,6 @@ sub _backend_compose {
     croak( "unknown backend ($module)\n" ) unless defined module_path( $module );
     Moo::Role->apply_roles_to_object( $self, $module );
     return;
-}
-
-sub backend {
-  $_[0]->_set__backend( $_[1] ) if defined $_[1] && ! $_[0]->_has_backend;
 }
 
 sub _build_ua {
@@ -69,6 +69,19 @@ sub get_gzip_contents {
         return join('', @contents);
     }
   }
+}
+
+sub make_dir {
+  my $self = shift;
+  my $dir  = shift;
+  if (! -d $dir) {
+    my $err;
+    my $dirs = make_path($dir, error => \$err);
+    $self->logger->log_and_croak(level => 'error', message => "Failed to create path: ${dir} with error: ${err}") if $err;
+    $self->logger->debug("Created path: ${dir}");
+    return 1;
+  }
+  return 0;
 }
 
 sub validate_file {

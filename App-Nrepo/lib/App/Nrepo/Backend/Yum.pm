@@ -24,44 +24,18 @@ sub get_metadata {
     my $m_url     = join('/', ($self->url, $arch, $location));
     my $dest_file = File::Spec->catfile($base_dir, $location);
     my $dest_dir  = dirname($dest_file);
-    # Setup the destination dir if needed
-    if (! -d $dest_dir) {
-      my $err;
-      my $dirs = make_path($dest_dir, error => \$err);
-      $self->logger->log_and_croak(level => 'error', message => "Failed to create path: ${dest_dir} with error: ${err}") if $err;
-      $self->logger->debug("Created path: ${dest_dir}");
-    }
+
+    # Make sure dir exists
+    $self->make_dir($dest_dir);
 
     # Grab the file
     $self->download_binary_file(url => $m_url, dest => $dest_file);
 
-    # XXX Separate this
+    print Dumper $m;
     # Parse the xml and retrieve the primary file location
     if ($type eq 'repomd') {
-      my $twig = XML::Twig->new(TwigRoots => {data => 1});
-      $twig->parsefile($dest_file);
-      my $root = $twig->root;
-      my @e = $root->children();
-      for my $e (@e) {
-        my $location;
-        #my $checksum;
-        #my $size;
-        my $data_type = $e->att('type');
-        #next unless $data_type eq 'primary';
-        for my $c ($e->children()) {
-          if ($c->name eq 'location') {
-            $location = $c->att('href');
-          }
-          #elsif ($c->name eq 'checksum') {
-          #  $checksum = $c->att('type');
-          #}
-          #elsif ($c->name eq 'size'){
-          #  $size = $c->text;
-          #}
-        }
-        push @metadata_files, {'type' => $data_type, location => $location};
-      }
-      #$self->logger->log_and_croak(level => 'error', message => "repomd.xml not valid: $dest_file") unless $location;
+      my $data = $self->parse_repomd($dest_file);
+      push @metadata_files, @{$data};
     }
 
     # Parse the primary metadata file
@@ -72,6 +46,37 @@ sub get_metadata {
     }
   }
   return $packages;
+}
+sub parse_repomd {
+  my $self = shift;
+  my $file = shift;
+
+  my $twig = XML::Twig->new(TwigRoots => {data => 1});
+  $twig->parsefile($file);
+
+  my $root = $twig->root;
+  my @e = $root->children();
+  my @files;
+  for my $e (@e) {
+    my $data = {};
+    $data->{'type'} = $e->att('type');
+    for my $c ($e->children()) {
+      if ($c->name eq 'location') {
+        $data->{'location'} = $c->att('href');
+      }
+      elsif ($c->name eq 'checksum') {
+        $data->{'checksum'} = $c->att('type');
+      }
+      elsif ($c->name eq 'size'){
+        $data->{'size'} = $c->text;
+      }
+    }
+    $self->logger->log_and_croak(level => 'error', message => "repomd xml not valid: $file") unless $data->{'location'};
+    push @files, $data;
+  }
+
+
+  return \@files;
 }
 sub parse_primary {
   my $self = shift;
