@@ -2,6 +2,7 @@ package App::Nrepo::Backend;
 
 use Carp;
 use Data::Dumper;
+use Digest::SHA;
 use LWP::UserAgent;
 use Moo::Role;
 use Module::Path qw[ module_path ];
@@ -81,25 +82,33 @@ sub validate_file {
   return 0 unless -f $o{'filename'};
 
   if ($o{'check'} eq 'size') {
-    return $self->_validate_file_size(filename => $o{'filename'}, size => $o{'value'});
+    return $self->_validate_file_size($o{'filename'}, $o{'value'});
   }
   elsif ($o{'check'} eq 'sha256') {
     #XXX TODO
-    return $self->_validate_file_sha256(%o);
+    return $self->_validate_file_sha256($o{'filename'}, $o{'value'});
   }
 }
 
 sub _validate_file_size {
   my $self = shift;
-  my %o = validate(@_, {
-    filename => { type => SCALAR },
-    size     => { type => SCALAR },
-  });
+  my $file = shift;
+  my $size = shift;
 
-  my @stats = stat($o{'filename'});
+  my @stats     = stat($file);
   my $file_size = $stats[7];
 
-  return $file_size eq $o{'size'} ? 1 : undef;
+  return $file_size eq $size ? 1 : undef;
+}
+
+sub _validate_file_sha256 {
+  my $self     = shift;
+  my $file     = shift;
+  my $checksum = shift;
+
+  my $sha = Digest::SHA->new('sha256');
+  $sha->addfile($file);
+  return $sha->hexdigest eq $checksum ? 1 : undef;
 }
 
 sub mirror {
