@@ -3,7 +3,7 @@ package App::Nrepo::Backend::Yum;
 use Moo::Role;
 use Carp;
 use IO::Zlib;
-use File::Path qw(make_path);
+use File::Find qw(find);
 use File::Basename qw(dirname);
 use Params::Validate qw(:all);
 use Data::Dumper qw(Dumper);
@@ -11,8 +11,8 @@ use XML::Twig;
 
 sub get_metadata {
   my $self = shift;
+  my $arch = shift;
 
-  my $arch     = $self->arch();
   my $base_dir = File::Spec->catdir($self->dir(), $arch);
   my $packages;
 
@@ -20,7 +20,8 @@ sub get_metadata {
   for my $m (@metadata_files) {
     my $type      = $m->{'type'};
     my $location  = $m->{'location'};
-    my $m_url     = join('/', ($self->url, $arch, $location));
+    my $m_url     = join('/', ($self->url, $location));
+    $m_url        =~ s/%ARCH%/$arch/;
     my $dest_file = File::Spec->catfile($base_dir, $location);
     my $dest_dir  = dirname($dest_file);
 
@@ -43,6 +44,41 @@ sub get_metadata {
     }
   }
   return $packages;
+}
+
+sub read_metadata {
+  my $self = shift;
+  my $arch = shift;
+
+  my $base_dir = File::Spec->catdir($self->dir(), $arch);
+  my $files = {};
+
+  my @metadata_files = ({type => 'repomd', location => 'repodata/repomd.xml'});
+  for my $m (@metadata_files) {
+    my $type      = $m->{'type'};
+    my $location  = $m->{'location'};
+    my $dest_file = File::Spec->catfile($base_dir, $location);
+    my $dest_dir  = dirname($dest_file);
+
+    $files->{$location}++;
+
+    if (-f $dest_file) {
+      # Parse the xml and retrieve the primary file location
+      if ($type eq 'repomd') {
+        my $data = $self->parse_repomd($dest_file);
+        push @metadata_files, @{$data};
+      }
+
+      # Parse the primary metadata file
+      if ($type eq 'primary') {
+        my $contents = $self->get_gzip_contents($dest_file);
+        for my $file (@{$self->parse_primary($contents)}) {
+          $files->{$file->{'location'}}++;
+        }
+      }
+    }
+  }
+  return $files;
 }
 
 sub parse_repomd {
@@ -108,11 +144,12 @@ sub parse_primary {
 sub get_packages {
   my $self = shift;
   my %o = validate(@_, {
+    arch     => { type => SCALAR },
     packages => { type => ARRAYREF },
   });
 
   print "DEBUG: get_packages from App::Nrepo::Backend::Yum\n";
-  my $arch     = $self->arch();
+  my $arch     = $o{'arch'};
   my $base_dir = File::Spec->catdir($self->dir(), $arch);
 
   for my $package (@{$o{'packages'}}) {
@@ -121,7 +158,8 @@ sub get_packages {
     my $location = $package->{'location'};
     my $checksum = $package->{'checksum'};
 
-    my $p_url     = join('/', ($self->url, $arch, $location));
+    my $p_url     = join('/', ($self->url, $location));
+    $p_url        =~ s/%ARCH%/$arch/;
     my $dest_file = File::Spec->catfile($base_dir, $location);
     my $dest_dir  = dirname($dest_file);
 
@@ -148,6 +186,30 @@ sub get_packages {
       $self->logger->debug("get_packages: skipping package: ${name} as its deemed up to date");
     }
   }
+}
+sub clean_files {
+  my $self = shift;
+  my %o = validate(@_, {
+    arch  => { type => SCALAR },
+    files => { type => HASHREF },
+  });
+
+  print "DEBUG: clean_packages from App::Nrepo::Backend::Yum\n";
+  my $arch     = $o{'arch'};
+  my $base_dir = File::Spec->catdir($self->dir(), $arch);
+
+  my $full_files = {};
+  for my $file (keys %{$o{'files'}}) {
+    $full_files->{File::Spec->catdir($base_dir, $file)}++;
+  }
+  find(sub {
+    if ($_ !~ /^[\.]+$/ and ! -d $_) {
+      #print "found: $_!\n"
+      unless ($full_files->{$File::Find::name}) {
+        print "XXX I should delete this file: $File::Find::name\n";
+      }
+    }
+  }, $base_dir);
 }
 sub add_files {
   my $self = shift;

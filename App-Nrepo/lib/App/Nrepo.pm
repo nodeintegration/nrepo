@@ -30,6 +30,16 @@ sub go {
       $self->mirror(repo => $options->{'repo'}, checksums => $options->{'checksums'}, );
     }
   }
+  elsif ($action eq 'clean') {
+    if ($options->{'repo'} eq 'all') {
+      for my $repo (keys %{$self->config->{'repo'}}) {
+        $self->mirror(repo => $repo);
+      }
+    }
+    else {
+      $self->clean(repo => $options->{'repo'});
+    }
+  }
   else {
     $self->logger->log_and_croak(
       'level'   => 'error',
@@ -53,13 +63,19 @@ sub _validate_config {
 
   # required params for repos
   for my $repo (sort keys %{$self->config->{'repo'}}) {
-    for my $param (qw/type local/) {
+    for my $param (qw/type local arch/) {
       $self->logger->log_and_croak(
         level   => 'error',
         message => sprintf "repo: %s missing param: %s", $repo, $param,
       ) unless $self->config->{repo}->{$repo}->{$param};
       # Data validation for specific type
-      if ($param eq 'type') {
+      if ($param eq 'arch') {
+        # We allow identical options which we use for arch, lets end up with an array regardless
+        my $arch = $self->config->{'repo'}->{$repo}->{'arch'};
+        my $arches = ref($arch) eq 'ARRAY' ? $arch : [$arch];
+        $self->config->{'repo'}->{$repo}->{'arch'} = $arches;
+      }
+      elsif ($param eq 'type') {
         unless (
           $self->config->{repo}->{$repo}->{$param} eq 'Yum' ||
           $self->config->{repo}->{$repo}->{$param} eq 'Apt' ||
@@ -121,14 +137,33 @@ sub mirror {
   my $r = App::Nrepo::Repo->new(
     logger    => $self->logger(),
     repo      => $o{'repo'},
-    arch      => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
+    arches    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
     url       => $self->config->{'repo'}->{$o{'repo'}}->{'url'},
     checksums => $o{'checksums'},
     backend   => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
     dir       => $self->get_repo_dir(repo => $o{'repo'}),
+    ssl_ca    => $self->config->{'repo'}->{$o{'repo'}}->{'ca'} || undef,
+    ssl_cert  => $self->config->{'repo'}->{$o{'repo'}}->{'cert'} || undef,
+    ssl_key   => $self->config->{'repo'}->{$o{'repo'}}->{'key'} || undef,
   );
 
   $r->mirror();
+}
+sub clean {
+  my $self = shift;
+  my %o = validate(@_, {
+    repo      => { type => SCALAR, },
+  });
+
+  my $r = App::Nrepo::Repo->new(
+    logger    => $self->logger(),
+    repo      => $o{'repo'},
+    arches    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
+    backend   => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
+    dir       => $self->get_repo_dir(repo => $o{'repo'}),
+  );
+
+  $r->clean();
 }
 
 

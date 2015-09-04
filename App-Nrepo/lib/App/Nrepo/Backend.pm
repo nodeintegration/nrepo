@@ -3,6 +3,7 @@ package App::Nrepo::Backend;
 use Carp;
 use Data::Dumper;
 use Digest::SHA;
+use File::Path qw(make_path);
 use LWP::UserAgent;
 use Moo::Role;
 use Module::Path qw[ module_path ];
@@ -18,8 +19,12 @@ has dir       => ( is => 'ro', required => 1 );
 has url       => ( is => 'ro', optional => 1 );
 has checksums => ( is => 'ro', optional => 1 );
 has force     => ( is => 'ro', optional => 1 );
-has arch      => ( is => 'ro', required => 1 );
+has arches    => ( is => 'ro', required => 1 );
 has ua        => ( is => 'lazy' );
+has ssl_ca    => ( is => 'ro', optional => 1 );
+has ssl_cert  => ( is => 'ro', optional => 1 );
+has ssl_key   => ( is => 'ro', optional => 1 );
+
 has _backend  => (
     is        => 'rwp',
     predicate => 1,
@@ -47,6 +52,8 @@ sub _build_ua {
   $o{ssl_opts}->{'SSL_ca_file'}   = $self->ssl_ca()   if $self->can('ssl_ca');
   $o{ssl_opts}->{'SSL_cert_file'} = $self->ssl_cert() if $self->can('ssl_cert');
   $o{ssl_opts}->{'SSL_key_file'}  = $self->ssl_key()  if $self->can('ssl_key');
+
+  print Dumper \%o;
 
   return LWP::UserAgent->new(%o);
 }
@@ -128,8 +135,20 @@ sub mirror {
 
   $self->logger->debug(sprintf("mirror: starting repo: %s from url: %s to dir: %s", $self->repo, $self->url, $self->dir));
 
-  my $packages = $self->get_metadata();
-  $self->get_packages(packages => $packages);
+  for my $arch (@{$self->arches()}) {
+    my $packages = $self->get_metadata($arch);
+    $self->get_packages(arch => $arch, packages => $packages);
+  }
+
+}
+sub clean {
+  my $self = shift;
+
+  $self->logger->debug(sprintf("clean: starting repo: %s in dir: %s", $self->repo, $self->dir));
+  for my $arch (@{$self->arches()}) {
+    my $files = $self->read_metadata($arch);
+    $self->clean_files(arch => $arch, files => $files);
+  }
 
 }
 

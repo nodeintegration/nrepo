@@ -40,9 +40,11 @@ sub validate_options {
     pod2usage(-verbose=>2, -output => \*STDERR);
   }
   my $action = $options->{'action'};
+  #XXX This is already covered in Nrepo.pm...move it
   my $valid_actions = {
     'list'         => {requires => []},
     'mirror'       => {requires => ['repo']},
+    'clean'        => {requires => ['repo']},
     'tag'          => {requires => ['repo']},
     'clonetag'     => {requires => ['repo', 'tag']},
     'init'         => {requires => ['repo']},
@@ -78,9 +80,10 @@ my $conf_o = Config::General->new(
     -IncludeGlob        => 1,
     -IncludeRelative    => 1,
     -IncludeAgain       => 1,
-    -AllowMultiOptions  => 0,
+    -AllowMultiOptions  => 1,
 );
 my $config = {$conf_o->getall};
+
 validate_options($options, $config);
 
 # Setup Default Config
