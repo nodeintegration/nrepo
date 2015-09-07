@@ -198,23 +198,23 @@ sub clean_files {
   my $arch     = $o{'arch'};
   my $base_dir = File::Spec->catdir($self->dir(), $arch);
 
-  my $full_files = {};
-  for my $file (keys %{$o{'files'}}) {
-    $full_files->{File::Spec->catdir($base_dir, $file)}++;
-  }
-  find(sub {
-    if ($_ !~ /^[\.]+$/ and ! -d $_) {
-      #print "found: $_!\n"
-      unless ($full_files->{$File::Find::name}) {
-        if (unlink $File::Find::name) {
-          $self->logger->info("clean_files: removing non referenced file: ${File::Find::name}");
-        }
-        else {
-          $self->logger->log_and_croak(level => 'error', message => "Failed to remove file: ${File::Find::name}");
+  find(
+    sub {
+      if (
+        $_ !~ /^[\.]+$/
+      ) {
+        my $file = $_;
+        if (-f $file) {
+          my $rel = File::Spec->abs2rel($File::Find::name, $base_dir);
+          unless ($o{'files'}->{$rel}) {
+            $self->logger->info("clean_files: removing non referenced file: ${File::Find::name}");
+            unlink $file or $self->logger->log_and_croak(level => 'error', message => "Failed to remove file: ${file}: $!");
+          }
         }
       }
-    }
-  }, $base_dir);
+    },
+    $base_dir,
+  );
 }
 sub add_files {
   my $self = shift;
