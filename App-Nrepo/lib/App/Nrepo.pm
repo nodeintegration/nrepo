@@ -2,11 +2,11 @@ package App::Nrepo;
 
 use Moo;
 use Carp;
+use Data::Dumper;
 use namespace::clean;
 use Params::Validate qw(:all);
-use Data::Dumper;
+use Module::Pluggable::Object;
 use File::Spec;
-use App::Nrepo::Repo;
 
 has config => ( is => 'ro' );
 has logger => ( is => 'ro' );
@@ -91,7 +91,6 @@ sub _validate_config {
   }
 }
 
-
 sub get_repo_dir {
   my $self = shift;
   my %o = validate(@_, {
@@ -127,6 +126,25 @@ sub list {
   }
 }
 
+sub _get_plugin {
+  my $self    = shift;
+  my %o = validate(@_, {
+    type      => { type    => SCALAR, },
+    options   => { options => HASHREF, },
+  });
+
+  my $plugin;
+  for my $p (Module::Pluggable::Object->new(
+    instantiate => 'new',
+    search_path => ['App::Nrepo::Plugin'],
+    except      => ['App::Nrepo::Plugin::Base'],
+  )->plugins(%{$o{'options'}}) ) {
+    $plugin = $p if $p->type() eq $o{'type'};
+  }
+  $self->logger->log_and_croak(level => 'error', message => "Failed to find a plugin for type: $o{'type'}") unless $plugin;
+  return $plugin;
+}
+
 sub mirror {
   my $self = shift;
   my %o = validate(@_, {
@@ -134,7 +152,7 @@ sub mirror {
     checksums => { type => BOOLEAN, optional => 1, },
   });
 
-  my $r = App::Nrepo::Repo->new(
+  my $options = {
     logger    => $self->logger(),
     repo      => $o{'repo'},
     arches    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
@@ -145,25 +163,33 @@ sub mirror {
     ssl_ca    => $self->config->{'repo'}->{$o{'repo'}}->{'ca'} || undef,
     ssl_cert  => $self->config->{'repo'}->{$o{'repo'}}->{'cert'} || undef,
     ssl_key   => $self->config->{'repo'}->{$o{'repo'}}->{'key'} || undef,
+  };
+  my $plugin = $self->_get_plugin(
+    type    => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
+    options => $options
   );
-
-  $r->mirror();
+  $plugin->mirror();
 }
+
 sub clean {
   my $self = shift;
   my %o = validate(@_, {
     repo      => { type => SCALAR, },
   });
 
-  my $r = App::Nrepo::Repo->new(
+  my $options = {
     logger    => $self->logger(),
     repo      => $o{'repo'},
     arches    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
     backend   => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
     dir       => $self->get_repo_dir(repo => $o{'repo'}),
+  };
+  my $plugin = $self->_get_plugin(
+    type    => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
+    options => $options,
   );
 
-  $r->clean();
+  $plugin->clean();
 }
 
 
