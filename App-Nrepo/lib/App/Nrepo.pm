@@ -2,6 +2,7 @@ package App::Nrepo;
 
 use Moo;
 use Carp;
+use Cwd qw(getcwd);
 use Data::Dumper;
 use namespace::clean;
 use Params::Validate qw(:all);
@@ -23,22 +24,25 @@ sub go {
   elsif ($action eq 'mirror') {
     if ($options->{'repo'} eq 'all') {
       for my $repo (keys %{$self->config->{'repo'}}) {
-        $self->mirror(repo => $repo, checksums => $options->{'checksums'}, );
+        $self->mirror(repo => $repo, checksums => $options->{'checksums'}, force => $options->{'force'});
       }
     }
     else {
-      $self->mirror(repo => $options->{'repo'}, checksums => $options->{'checksums'}, );
+      $self->mirror(repo => $options->{'repo'}, checksums => $options->{'checksums'}, force => $options->{'force'});
     }
   }
   elsif ($action eq 'clean') {
     if ($options->{'repo'} eq 'all') {
       for my $repo (keys %{$self->config->{'repo'}}) {
-        $self->mirror(repo => $repo);
+        $self->mirror(repo => $repo, force => $options->{'force'});
       }
     }
     else {
-      $self->clean(repo => $options->{'repo'});
+      $self->clean(repo => $options->{'repo'}, force => $options->{'force'});
     }
+  }
+  elsif ($action eq 'tag') {
+    $self->tag(repo => $options->{'repo'}, dest_tag => $options->{'tag'}, force => $options->{'force'});
   }
   else {
     $self->logger->log_and_croak(
@@ -51,10 +55,14 @@ sub go {
 sub _validate_config {
   my $self = shift;
 
+  # If data_dir is relative, lets expand it based on cwd
+  $self->config->{'data_dir'} = File::Spec->catdir(getcwd, $self->config->{data_dir});
+
   $self->logger->log_and_croak(
     level   => 'error',
     message => sprintf "datadir does not exist: %s", $self->config->{data_dir},
   ) unless -d $self->config->{data_dir};
+
 
   $self->logger->log_and_croak(
     level   => 'error',
@@ -150,6 +158,7 @@ sub mirror {
   my %o = validate(@_, {
     repo      => { type => SCALAR, },
     checksums => { type => BOOLEAN, optional => 1, },
+    force     => { type => BOOLEAN, optional => 1, },
   });
 
   my $options = {
@@ -163,6 +172,7 @@ sub mirror {
     ssl_ca    => $self->config->{'repo'}->{$o{'repo'}}->{'ca'} || undef,
     ssl_cert  => $self->config->{'repo'}->{$o{'repo'}}->{'cert'} || undef,
     ssl_key   => $self->config->{'repo'}->{$o{'repo'}}->{'key'} || undef,
+    force     => $o{'force'},
   };
   my $plugin = $self->_get_plugin(
     type    => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
@@ -175,6 +185,7 @@ sub clean {
   my $self = shift;
   my %o = validate(@_, {
     repo      => { type => SCALAR, },
+    force     => { type => BOOLEAN, optional => 1, },
   });
 
   my $options = {
@@ -183,6 +194,7 @@ sub clean {
     arches    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
     backend   => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
     dir       => $self->get_repo_dir(repo => $o{'repo'}),
+    force     => $o{'force'},
   };
   my $plugin = $self->_get_plugin(
     type    => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
@@ -192,6 +204,37 @@ sub clean {
   $plugin->clean();
 }
 
+sub tag {
+  my $self = shift;
+  my %o = validate(@_, {
+    repo      => { type => SCALAR, },
+    src_tag   => { type => SCALAR, default => 'head' },
+    dest_tag  => { type => SCALAR, },
+    force     => { type => BOOLEAN, optional => 1, },
+  });
+
+  my $options = {
+    logger    => $self->logger(),
+    repo      => $o{'repo'},
+    arches    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
+    backend   => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
+    dir       => $self->get_repo_dir(repo => $o{'repo'}),
+    force     => $o{'force'},
+  };
+
+  my $plugin = $self->_get_plugin(
+    type    => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
+    options => $options,
+  );
+
+  $plugin->tag(
+    src_dir  => $self->get_repo_dir(repo => $o{'repo'}, tag => $o{'src_tag'}),
+    src_tag  => $o{'src_tag'},
+    dest_dir => $self->get_repo_dir(repo => $o{'repo'}, tag => $o{'dest_tag'}),
+    dest_tag => $o{'dest_tag'},
+    hard_link => 0,
+  );
+}
 
 
 1;

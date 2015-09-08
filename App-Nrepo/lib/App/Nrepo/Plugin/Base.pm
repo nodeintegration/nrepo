@@ -3,7 +3,7 @@ package App::Nrepo::Plugin::Base;
 use Carp;
 use Data::Dumper;
 use Digest::SHA;
-use File::Path qw(make_path);
+use File::Path qw(make_path remove_tree);
 use LWP::UserAgent;
 use Moo::Role;
 use Module::Path qw[ module_path ];
@@ -63,6 +63,18 @@ sub make_dir {
     my $dirs = make_path($dir, error => \$err);
     $self->logger->log_and_croak(level => 'error', message => "Failed to create path: ${dir} with error: ${err}") if $err;
     $self->logger->debug("Created path: ${dir}");
+    return 1;
+  }
+  return 0;
+}
+sub remove_dir {
+  my $self = shift;
+  my $dir  = shift;
+  if (-d $dir) {
+    my $err;
+    my $dirs = remove_tree($dir, error => \$err);
+    $self->logger->log_and_croak(level => 'error', message => "Failed to create path: ${dir} with error: ${err}") if $err;
+    $self->logger->debug("removed path: ${dir}");
     return 1;
   }
   return 0;
@@ -129,12 +141,70 @@ sub clean {
 
 }
 
-#XXX TODO
 sub init {
   my $self = shift;
   #$plugin->init();
   print "Here\n";
 
+}
+
+sub tag {
+  my $self = shift;
+  my %o = validate(@_, {
+    src_tag   => { type => SCALAR },
+    src_dir   => { type => SCALAR },
+    dest_tag  => { type => SCALAR },
+    dest_dir  => { type => SCALAR },
+    hard_link => { type => BOOLEAN, default => 1 },
+  });
+
+  $self->logger->debug(sprintf('tag: repo: %s tagging: %s -> %s', $self->repo(), $o{'src_dir'}, $o{'dest_dir'}));
+  # When src_dir does not exist do not continue
+  $self->logger->log_and_die(
+    level   => 'error',
+    message => sprintf("tag: repo: %s src_dir: %s does not exist", $self->repo(), $o{'src_dir'}),
+  ) unless -d $o{'src_dir'};
+
+  # When dest_dir exists and force is not set do not continue
+  if ( -l $o{'dest_dir'} ) {
+    if ($self->force() ) {
+      unlink $o{'dest_dir'};
+    }
+    else {
+      $self->logger->log_and_die(
+        level   => 'error',
+        message => sprintf("tag: repo: %s dest_dir: %s exists and force not enabled.", $self->repo(), $o{'dest_dir'}),
+      );
+    }
+  }
+  elsif ( -d $o{'dest_dir'} ) {
+    if ($self->force() ) {
+      $self->logger->log_and_die(
+        level   => 'error',
+        message => sprintf("tag: repo: %s dest_dir: %s exists and force not enabled.", $self->repo(), $o{'dest_dir'}),
+      );
+    }
+    else {
+      $self->remove_dir($o{'dest_dir'});
+    }
+  }
+
+  if ($o{'hard_link'}) {
+    $self->make_dir($o{'dest_dir'});
+    $self->logger->log_and_die(
+        level   => 'error',
+        message => 'XXX TODO',
+    );
+    # Find files in the source dir
+    # Build a list
+    # link files from source_dir to dest_dir
+  }
+  else {
+    symlink $o{'src_dir'}, $o{'dest_dir'} || $self->logger->log_and_die(
+        level   => 'error',
+        message => sprintf("tag: repo: %s couldnt link src_dir: %s to dst_dir: %s: $!", $self->repo(), $o{'src_dir'}, $o{'dest_dir'}),
+    );
+  }
 }
 
 sub download_binary_file {
