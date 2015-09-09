@@ -27,6 +27,7 @@ GetOptions(
   'mirror',
   'repo=s',
   'tag=s',
+  'softlink',
   'h|help',
 );
 

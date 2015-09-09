@@ -3,6 +3,7 @@ package App::Nrepo::Plugin::Base;
 use Carp;
 use Data::Dumper;
 use Digest::SHA;
+use File::Find qw(find);
 use File::Path qw(make_path remove_tree);
 use LWP::UserAgent;
 use Moo::Role;
@@ -122,7 +123,7 @@ sub _validate_file_sha256 {
 sub mirror {
   my $self = shift;
 
-  $self->logger->debug(sprintf("mirror: starting repo: %s from url: %s to dir: %s", $self->repo, $self->url, $self->dir));
+  $self->logger->info(sprintf("mirror: starting repo: %s from url: %s to dir: %s", $self->repo, $self->url, $self->dir));
 
   for my $arch (@{$self->arches()}) {
     my $packages = $self->get_metadata($arch);
@@ -133,7 +134,7 @@ sub mirror {
 sub clean {
   my $self = shift;
 
-  $self->logger->debug(sprintf("clean: starting repo: %s in dir: %s", $self->repo, $self->dir));
+  $self->logger->info(sprintf("clean: starting repo: %s in dir: %s", $self->repo, $self->dir));
   for my $arch (@{$self->arches()}) {
     my $files = $self->read_metadata($arch);
     $self->clean_files(arch => $arch, files => $files);
@@ -155,10 +156,11 @@ sub tag {
     src_dir   => { type => SCALAR },
     dest_tag  => { type => SCALAR },
     dest_dir  => { type => SCALAR },
-    hard_link => { type => BOOLEAN, default => 1 },
+    softlink  => { type => BOOLEAN, default => 0 },
   });
 
   $self->logger->debug(sprintf('tag: repo: %s tagging: %s -> %s', $self->repo(), $o{'src_dir'}, $o{'dest_dir'}));
+
   # When src_dir does not exist do not continue
   $self->logger->log_and_die(
     level   => 'error',
@@ -166,8 +168,9 @@ sub tag {
   ) unless -d $o{'src_dir'};
 
   # When dest_dir exists and force is not set do not continue
+  # Handle symbolic link destinations
   if ( -l $o{'dest_dir'} ) {
-    if ($self->force() ) {
+    if ($self->force()) {
       unlink $o{'dest_dir'};
     }
     else {
@@ -177,33 +180,70 @@ sub tag {
       );
     }
   }
+  # Handle hard linked destinations
   elsif ( -d $o{'dest_dir'} ) {
     if ($self->force() ) {
+      $self->remove_dir($o{'dest_dir'});
+    }
+    else {
       $self->logger->log_and_die(
         level   => 'error',
         message => sprintf("tag: repo: %s dest_dir: %s exists and force not enabled.", $self->repo(), $o{'dest_dir'}),
       );
     }
-    else {
-      $self->remove_dir($o{'dest_dir'});
-    }
   }
 
-  if ($o{'hard_link'}) {
+  # Setup the new destination
+
+  # handle hardlinked destination
+  unless ($o{'softlink'}) {
     $self->make_dir($o{'dest_dir'});
-    $self->logger->log_and_die(
-        level   => 'error',
-        message => 'XXX TODO',
+    $self->logger->debug(sprintf('tag: repo: %s hardlink src_dir: %s dest_dir: %s', $self->repo(), $o{'src_dir'}, $o{'dest_dir'}));
+    find(
+      sub {
+        if (
+          $_ !~ /^[\.]+$/
+        ) {
+          my $src_path = $File::Find::name;
+          my $path = File::Spec->abs2rel($File::Find::name, $o{'src_dir'});
+          if (-d $src_path) {
+            $self->make_dir(File::Spec->catdir($o{'dest_dir'}, $path));
+          }
+          elsif (-f $src_path) {
+            my $dest_path = File::Spec->catfile($o{'dest_dir'}, $path);
+
+            if (link $src_path, $dest_path) {
+              $self->logger->debug(sprintf('tag: repo: %s hardlink: %s', $self->repo(), $path));
+            }
+            else {
+              $self->logger->log_and_croak(
+                level => 'error',
+                message => sprintf('tag: repo: %s failed to hardlink: %s to %s',
+                  $self->repo(),
+                  $src_path,
+                  $dest_path,
+                ),
+              );
+            }
+          }
+        }
+      },
+      $o{'src_dir'},
     );
-    # Find files in the source dir
-    # Build a list
-    # link files from source_dir to dest_dir
+
   }
+
+  # handle symlink destination
   else {
-    symlink $o{'src_dir'}, $o{'dest_dir'} || $self->logger->log_and_die(
+    if (symlink $o{'src_dir'}, $o{'dest_dir'}) {
+      $self->logger->debug(sprintf('tag: repo: %s softlink src_dir: %s dest_dir: %s', $self->repo(), $o{'src_dir'}, $o{'dest_dir'}));
+    }
+    else {
+      $self->logger->log_and_die(
         level   => 'error',
         message => sprintf("tag: repo: %s couldnt link src_dir: %s to dst_dir: %s: $!", $self->repo(), $o{'src_dir'}, $o{'dest_dir'}),
-    );
+      );
+    }
   }
 }
 
@@ -215,7 +255,14 @@ sub download_binary_file {
     retry_limit => { type => SCALAR, default => 3 },
   });
 
-  $self->logger->debug("download_binary_file: $o{url} -> $o{dest}");
+  $self->logger->debug(
+    sprintf(
+      'download_binary_file: repo: %s url: %s dest: %s',
+      $self->repo(),
+      $o{url},
+      $o{dest},
+    )
+  );
 
   my $retry_count = 0;
   my $retry_limit = $o{retry_limit};
@@ -226,19 +273,45 @@ sub download_binary_file {
     my $res = $self->ua->get($o{'url'}, ':content_file' => $o{'dest'});
     my $elapsed = tv_interval($t0);
 
-    $self->logger->debug("download_binary_file: $o{url} took: ${elapsed}");
+    $self->logger->debug(
+      sprintf(
+        'download_binary_file: repo: %s url: %s took: %s',
+        $self->repo(),
+        $o{url},
+        $elapsed,
+      )
+    );
 
     if ($res->is_success) {
       return 1;
     }
     else {
-      $self->logger->debug("download_binary_file: $o{url} failed with status: " . $res->status_line);
+      $self->logger->debug(
+        sprintf(
+          'download_binary_file: repo: %s url: %s failed with status: %s',
+          $self->repo(),
+          $o{url},
+          $res->status_line,
+        )
+      );
       $retry_count++;
       if ($retry_count <= $retry_limit) {
-        $self->logger->debug("download_binary_file: $o{url} retrying") if $retry_count;
+        $self->logger->debug(
+          sprintf(
+            'download_binary_file: repo: %s url: %s retrying',
+            $self->repo(),
+            $o{url},
+          )
+        ) if $retry_count;
       }
       else {
-        $self->logger->error("download_binary_file: $o{url} failed and exhausted all retries.");
+        $self->logger->debug(
+          sprintf(
+            'download_binary_file: repo: %s url: %s failed and exhausted all retries',
+            $self->repo(),
+            $o{url},
+          )
+        );
         return undef;
       }
     }

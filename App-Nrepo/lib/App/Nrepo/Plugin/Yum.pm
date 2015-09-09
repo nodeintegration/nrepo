@@ -181,10 +181,11 @@ sub get_packages {
 
     # Grab the file
     if ($download) {
+      $self->logger->debug(sprintf('get_packages: repo: %s arch: %s package: %s', $self->repo(), $arch, $name));
       $self->download_binary_file(url => $p_url, dest => $dest_file);
     }
     else {
-      $self->logger->debug("get_packages: skipping package: ${name} as its deemed up to date");
+      $self->logger->debug(sprintf('get_packages: repo: %s arch: %s package: %s skipping as its deemed up to date', $self->repo(), $arch, $name));
     }
   }
 }

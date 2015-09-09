@@ -42,7 +42,7 @@ sub go {
     }
   }
   elsif ($action eq 'tag') {
-    $self->tag(repo => $options->{'repo'}, dest_tag => $options->{'tag'}, force => $options->{'force'});
+    $self->tag(repo => $options->{'repo'}, dest_tag => $options->{'tag'}, softlink => $options->{'softlink'}, force => $options->{'force'});
   }
   else {
     $self->logger->log_and_croak(
@@ -211,6 +211,7 @@ sub tag {
     src_tag   => { type => SCALAR, default => 'head' },
     dest_tag  => { type => SCALAR, },
     force     => { type => BOOLEAN, optional => 1, },
+    softlink  => { type => BOOLEAN, optional => 1, },
   });
 
   my $options = {
@@ -232,7 +233,7 @@ sub tag {
     src_tag  => $o{'src_tag'},
     dest_dir => $self->get_repo_dir(repo => $o{'repo'}, tag => $o{'dest_tag'}),
     dest_tag => $o{'dest_tag'},
-    hard_link => 0,
+    softlink => $o{'softlink'},
   );
 }
 
