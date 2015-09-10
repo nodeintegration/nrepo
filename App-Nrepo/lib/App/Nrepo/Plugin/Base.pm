@@ -152,11 +152,11 @@ sub init {
 sub tag {
   my $self = shift;
   my %o = validate(@_, {
-    src_tag   => { type => SCALAR },
-    src_dir   => { type => SCALAR },
-    dest_tag  => { type => SCALAR },
-    dest_dir  => { type => SCALAR },
-    softlink  => { type => BOOLEAN, default => 0 },
+    src_tag  => { type => SCALAR },
+    src_dir  => { type => SCALAR },
+    dest_tag => { type => SCALAR },
+    dest_dir => { type => SCALAR },
+    symlink  => { type => BOOLEAN, default => 0 },
   });
 
   $self->logger->debug(sprintf('tag: repo: %s tagging: %s -> %s', $self->repo(), $o{'src_dir'}, $o{'dest_dir'}));
@@ -196,7 +196,7 @@ sub tag {
   # Setup the new destination
 
   # handle hardlinked destination
-  unless ($o{'softlink'}) {
+  unless ($o{'symlink'}) {
     $self->make_dir($o{'dest_dir'});
     $self->logger->debug(sprintf('tag: repo: %s hardlink src_dir: %s dest_dir: %s', $self->repo(), $o{'src_dir'}, $o{'dest_dir'}));
     find(
@@ -236,7 +236,7 @@ sub tag {
   # handle symlink destination
   else {
     if (symlink $o{'src_dir'}, $o{'dest_dir'}) {
-      $self->logger->debug(sprintf('tag: repo: %s softlink src_dir: %s dest_dir: %s', $self->repo(), $o{'src_dir'}, $o{'dest_dir'}));
+      $self->logger->debug(sprintf('tag: repo: %s symlink src_dir: %s dest_dir: %s', $self->repo(), $o{'src_dir'}, $o{'dest_dir'}));
     }
     else {
       $self->logger->log_and_die(

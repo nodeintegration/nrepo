@@ -42,7 +42,12 @@ sub go {
     }
   }
   elsif ($action eq 'tag') {
-    $self->tag(repo => $options->{'repo'}, dest_tag => $options->{'tag'}, softlink => $options->{'softlink'}, force => $options->{'force'});
+    $self->tag(
+      repo => $options->{'repo'},
+      src_tag  => $options->{'src-tag'} || 'head',
+      dest_tag => $options->{'tag'},
+      symlink  => $options->{'symlink'},
+      force    => $options->{'force'});
   }
   else {
     $self->logger->log_and_croak(
@@ -69,7 +74,7 @@ sub _validate_config {
     message => sprintf "Unknown tag_style %s, must be topdir or bottomdir\n", $self->config->{tag_style},
   ) unless $self->config->{tag_style} =~ m/^(?:top|bottom)dir$/;
 
-  # required params for repos
+  # required params for reposrc-tag
   for my $repo (sort keys %{$self->config->{'repo'}}) {
     for my $param (qw/type local arch/) {
       $self->logger->log_and_croak(
@@ -207,11 +212,11 @@ sub clean {
 sub tag {
   my $self = shift;
   my %o = validate(@_, {
-    repo      => { type => SCALAR, },
-    src_tag   => { type => SCALAR, default => 'head' },
-    dest_tag  => { type => SCALAR, },
-    force     => { type => BOOLEAN, optional => 1, },
-    softlink  => { type => BOOLEAN, optional => 1, },
+    repo     => { type => SCALAR, },
+    src_tag  => { type => SCALAR, },
+    dest_tag => { type => SCALAR, },
+    force    => { type => BOOLEAN, optional => 1, },
+    symlink  => { type => BOOLEAN, optional => 1, },
   });
 
   my $options = {
@@ -233,7 +238,7 @@ sub tag {
     src_tag  => $o{'src_tag'},
     dest_dir => $self->get_repo_dir(repo => $o{'repo'}, tag => $o{'dest_tag'}),
     dest_tag => $o{'dest_tag'},
-    softlink => $o{'softlink'},
+    symlink  => $o{'symlink'},
   );
 }
 

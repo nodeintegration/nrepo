@@ -27,7 +27,8 @@ GetOptions(
   'mirror',
   'repo=s',
   'tag=s',
-  'softlink',
+  'src-tag=s',
+  'symlink',
   'h|help',
 );
 
@@ -42,12 +43,12 @@ sub validate_options {
   }
   my $action = $options->{'action'};
   #XXX This is already covered in Nrepo.pm...move it
+  #XXX But we need the cli to handle help, perhaps have it call the modules help method?
   my $valid_actions = {
     'list'         => {requires => []},
     'mirror'       => {requires => ['repo']},
     'clean'        => {requires => ['repo']},
     'tag'          => {requires => ['repo']},
-    'clonetag'     => {requires => ['repo', 'tag']},
     'init'         => {requires => ['repo']},
     'add-files'    => {requires => ['repo']},
     'remove-files' => {requires => ['repo']},
