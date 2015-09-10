@@ -61,13 +61,12 @@ sub _validate_config {
   my $self = shift;
 
   # If data_dir is relative, lets expand it based on cwd
-  $self->config->{'data_dir'} = File::Spec->catdir(getcwd, $self->config->{data_dir});
+  $self->config->{'data_dir'} = File::Spec->rel2abs($self->config->{data_dir});
 
   $self->logger->log_and_croak(
     level   => 'error',
     message => sprintf "datadir does not exist: %s", $self->config->{data_dir},
   ) unless -d $self->config->{data_dir};
-
 
   $self->logger->log_and_croak(
     level   => 'error',
@@ -166,6 +165,7 @@ sub mirror {
     force     => { type => BOOLEAN, optional => 1, },
   });
 
+  print Dumper $self->config->{'repo'}->{$o{'repo'}}->{'arch'};
   my $options = {
     logger    => $self->logger(),
     repo      => $o{'repo'},
