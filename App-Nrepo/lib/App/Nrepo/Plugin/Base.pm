@@ -60,9 +60,8 @@ sub make_dir {
   my $self = shift;
   my $dir  = shift;
   if (! -d $dir) {
-    my $err;
-    my $dirs = make_path($dir, { error => \$err });
-    $self->logger->log_and_croak(level => 'error', message => "Failed to create path: ${dir} with error: ${err}") if $err;
+    my $dirs = make_path($dir);
+    $self->logger->log_and_croak(level => 'error', message => "Failed to create path: ${dir}") unless -d $dir;
     $self->logger->debug("Created path: ${dir}");
     return 1;
   }
@@ -72,9 +71,8 @@ sub remove_dir {
   my $self = shift;
   my $dir  = shift;
   if (-d $dir) {
-    my $err;
     my $dirs = remove_tree($dir, { error => \$err });
-    $self->logger->log_and_croak(level => 'error', message => "Failed to create path: ${dir} with error: ${err}") if $err;
+    $self->logger->log_and_croak(level => 'error', message => "Failed to remove path: ${dir}") if -d $dir;
     $self->logger->debug("removed path: ${dir}");
     return 1;
   }
