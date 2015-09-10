@@ -18,7 +18,6 @@ GetOptions(
   $options,
   'action=s',
   'checksums',
-  'clonetag',
   'config-file=s',
   'force',
   'init',
@@ -125,7 +124,6 @@ nrepo --action X [options]
  Actions:
    mirror         Mirror a configured repository (requires --repo, use \'all\' for all configured repositories)
    tag            Tag a repository (requires --repo)
-   clonetag       Clones a tag in a repository (requires --repo and destination --tag)
    list           List all configured repositories
    init           Initialise a custom repository (requires --repo)
    add-files      Add files to a custom repository (requires --repo)
@@ -140,7 +138,11 @@ nrepo --action X [options]
 =head1 Examples
 
   nrepo --action mirror --repo centos-6-epel
-  nrepo --action tag release_20150827 --repo centos-6-epel
-  nrepo --action clonetag release_20150827 --tag production
+  nrepo --action tag --repo centos-6-epel --tag release_20150827
+  nrepo --action tag --repo centos-6-epel --src-tag release_20150827 --symlink --tag production
 
+  This will:
+   1. update centos-6-epel to the current upstream version
+   2. create a hardlink copy of head to release_20150827
+   3. create a symlink of release_20150827 to production
 
