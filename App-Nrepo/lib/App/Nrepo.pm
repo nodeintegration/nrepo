@@ -165,7 +165,6 @@ sub mirror {
     force     => { type => BOOLEAN, optional => 1, },
   });
 
-  print Dumper $self->config->{'repo'}->{$o{'repo'}}->{'arch'};
   my $options = {
     logger    => $self->logger(),
     repo      => $o{'repo'},
