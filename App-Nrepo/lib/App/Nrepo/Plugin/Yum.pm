@@ -181,7 +181,7 @@ sub get_packages {
 
     # Grab the file
     if ($download) {
-      $self->logger->debug(sprintf('get_packages: repo: %s arch: %s package: %s', $self->repo(), $arch, $name));
+      $self->logger->notice(sprintf('get_packages: repo: %s arch: %s package: %s', $self->repo(), $arch, $name));
       $self->download_binary_file(url => $p_url, dest => $dest_file);
     }
     else {
