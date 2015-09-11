@@ -92,6 +92,17 @@ sub remove_dir {
   return 0;
 }
 
+sub validate_arch {
+  my $self = shift;
+  my $arch = shift;
+
+  my $matched;
+  for my $a (@{$self->arches()}) {
+    $matched++ if $a eq $arch;
+  }
+
+  return $matched;
+}
 sub validate_file {
   my $self = shift;
   my %o = validate(@_, {
@@ -134,9 +145,8 @@ sub _validate_file_sha256 {
 sub mirror {
   my $self = shift;
 
-  $self->logger->info(sprintf("mirror: starting repo: %s from url: %s to dir: %s", $self->repo, $self->url, $self->dir));
-
   for my $arch (@{$self->arches()}) {
+    $self->logger->info(sprintf("mirror: starting repo: %s arch: %s from url: %s to dir: %s", $self->repo, $arch, $self->url, $self->dir));
     my $packages = $self->get_metadata($arch);
     $self->get_packages(arch => $arch, packages => $packages);
   }
@@ -155,9 +165,15 @@ sub clean {
 
 sub init {
   my $self = shift;
+  my $arch = shift;
   $self->logger->info(sprintf 'init: repo: %s dir: %s', $self->repo(), $self->dir());
-  for my $arch (@{$self->arches()}) {
+  if ($arch) {
     $self->init_arch($arch);
+  }
+  else {
+    for my $a (@{$self->arches()}) {
+      $self->init_arch($a);
+    }
   }
 
 }

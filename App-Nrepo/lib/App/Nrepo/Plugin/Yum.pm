@@ -11,6 +11,9 @@ use XML::Twig;
 
 with 'App::Nrepo::Plugin::Base';
 
+has packages_dir => ( is => 'ro', default => 'Packages' );
+has repodata_dir => ( is => 'ro', default => 'repodata' );
+
 sub get_metadata {
   my $self = shift;
   my $arch = shift;
@@ -218,12 +221,31 @@ sub clean_files {
   );
 }
 
-sub add_files {
-  my $self = shift;
+sub add_file {
+  my $self  = shift;
+  my $arch  = shift;
+  my $files = shift;
+
+  unless ($self->validate_arch($arch)) {
+    $self->logger->log_and_croak(level => 'error', message => sprintf 'add_file: arch: %s is not in config for repo: %s', $arch, $self->repo());
+  }
+
+  #XXX TODO
+  print " DEBUG: add_file: " . $self->packages_dir() . $/;
+
+
 }
 
-sub remove_files {
-  my $self = shift;
+sub del_file {
+  my $self  = shift;
+  my $arch  = shift;
+  my $files = shift;
+
+  unless ($self->validate_arch($arch)) {
+    $self->logger->log_and_croak(level => 'error', message => sprintf 'add_file: arch: %s is not in config for repo: %s', $arch, $self->repo());
+  }
+
+  #XXX TODO
 }
 
 sub init_arch {
@@ -235,9 +257,7 @@ sub init_arch {
   $self->logger->debug(sprintf 'init_arch: repo: %s arch: %s dir: %s', $self->repo(), $arch, $dir);
 
   $self->make_dir($dir);
-  my $packages_dir = 'Packages';
-  my $repodata_dir = 'repodata';
-  $self->make_dir(File::Spec->catdir($dir, $packages_dir));
+  $self->make_dir(File::Spec->catdir($dir, $self->packages_dir()));
 
   #XXX add gpg
 
@@ -251,11 +271,11 @@ sub init_arch {
     );
   }
 
-  my @cmd = ($createrepo_bin, '--basedir', $dir, '--outputdir', $dir, $packages_dir);
+  my @cmd = ($createrepo_bin, '--basedir', $dir, '--outputdir', $dir, $self->packages_dir());
   # --update will reuse the existing metadata if the file is already defined and size/mtime matches
   # dont do this if we're forcing or the repomd.xml doesnt exist
   unless ($self->force()) {
-    if (-f File::Spec->catfile($dir, $repodata_dir, 'repomd.xml')) {
+    if (-f File::Spec->catfile($dir, $self->repodata_dir(), 'repomd.xml')) {
       splice @cmd, 1, 0, '--update';
     }
   }

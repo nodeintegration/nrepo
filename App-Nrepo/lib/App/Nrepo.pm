@@ -14,49 +14,74 @@ has logger => ( is => 'ro' );
 
 sub go {
   my $self = shift;
-  my $options = shift;
-
+  my $action = shift;
+  my @o = @_;
+  my %options;
   $self->_validate_config();
-  my $action = $options->{'action'};
-  if ($action eq 'list' ) {
+
+  $self->logger->log_and_croak(level => 'error', message => 'ERROR: action not supplied.') unless $action;
+
+  if ($action eq 'add-file'){$self->add_file(@o)}
+  elsif($action eq 'del-file'){$self->del_file(@o)}
+  elsif($action eq 'clean'){
+    %options = validate(
+      @o,
+      {
+        'repo' => { type => SCALAR },
+        'arch' => { type => SCALAR, optional => 1 },
+      },
+    );
+    if ($options{'repo'} eq 'all') {
+      my %o = %options;
+      for my $repo (keys %{$self->config->{'repo'}}) {
+        $o{'repo'} = $repo;
+        $self->clean(%o);
+      }
+    }
+    else {
+      $self->clean(%options);
+    }
+  }
+  elsif($action eq 'init'){$self->init(@o)}
+  elsif($action eq 'list'){
     $self->list();
   }
-  elsif ($action eq 'mirror') {
-    if ($options->{'repo'} eq 'all') {
+  elsif($action eq 'mirror'){
+    %options = validate(
+      @o,
+      {
+        'repo'      => { type => SCALAR },
+        'force'     => { type => BOOLEAN, default  => 0 },
+        'arch'      => { type => SCALAR, optional => 1 },
+        'checksums' => { type => SCALAR, optional => 1},
+      },
+    );
+    if ($options{'repo'} eq 'all') {
+      my %o = %options;
       for my $repo (keys %{$self->config->{'repo'}}) {
-        $self->mirror(repo => $repo, checksums => $options->{'checksums'}, force => $options->{'force'});
+        $o{'repo'} = $repo;
+        $self->mirror(%o);
       }
     }
     else {
-      $self->mirror(repo => $options->{'repo'}, checksums => $options->{'checksums'}, force => $options->{'force'});
+      $self->mirror(%options);
     }
   }
-  elsif ($action eq 'clean') {
-    if ($options->{'repo'} eq 'all') {
-      for my $repo (keys %{$self->config->{'repo'}}) {
-        $self->mirror(repo => $repo, force => $options->{'force'});
-      }
-    }
-    else {
-      $self->clean(repo => $options->{'repo'}, force => $options->{'force'});
-    }
-  }
-  elsif ($action eq 'tag') {
-    $self->tag(
-      repo     => $options->{'repo'},
-      src_tag  => $options->{'src-tag'} || 'head',
-      dest_tag => $options->{'tag'},
-      symlink  => $options->{'symlink'},
-      force    => $options->{'force'});
-  }
-  elsif ($action eq 'init') {
-    $self->init(repo => $options->{'repo'},);
+  elsif($action eq 'tag'){
+    %options = validate(
+      @o,
+      {
+        'repo'    => { type => SCALAR },
+        'tag'     => { type => SCALAR },
+        'src-tag' => { type => SCALAR,  default => 'head' },
+        'symlink' => { type => BOOLEAN, default => 0 },
+        'force'   => { type => BOOLEAN, default => 0 },
+      },
+    );
+    $self->tag(%options);
   }
   else {
-    $self->logger->log_and_croak(
-      'level'   => 'error',
-      'message' => "ERROR: action: ${action} not implemented",
-    );
+    $self->logger->log_and_croak(level => 'error', message => "ERROR: ${action} not supported.");
   }
   exit(0);
 }
@@ -106,41 +131,6 @@ sub _validate_config {
   }
 }
 
-sub get_repo_dir {
-  my $self = shift;
-  my %o = validate(@_, {
-    repo => { type => SCALAR },
-    tag =>  { type => SCALAR, default => 'head', },
-  });
-
-  my $data_dir  = $self->config->{data_dir};
-  my $tag_style = $self->config->{tag_style};
-  my $repo      = $o{'repo'};
-  my $tag       = $o{'tag'};
-  my $local     = $self->config->{'repo'}->{$repo}->{'local'};
-
-  if ($tag_style eq 'topdir') {
-    return File::Spec->catdir($data_dir, $tag, $local);
-  }
-  elsif ($tag_style eq 'bottomdir') {
-    return File::Spec->catdir($data_dir, $local, $tag);
-  }
-  else {
-    $self->logger->log_and_croak(level => 'error', message => 'get_repo_dir: Unknown tag_style: '.$tag_style);
-  }
-}
-
-sub list {
-  my $self = shift;
-  print "Repository list:\n";
-  print sprintf "|%8s|%8s|%50s|\n", 'Type', 'Mirrored', 'Name';
-  for my $repo (sort keys %{$self->config->{repo}}) {
-    my $type     = $self->config->{repo}->{$repo}->{type};
-    my $mirrored = $self->config->{repo}->{$repo}->{url} ? 'Yes' : 'No';
-    print sprintf "|%8s|%8s|%50s|\n", $type, $mirrored, $repo;
-  }
-}
-
 sub _get_plugin {
   my $self    = shift;
   my %o = validate(@_, {
@@ -160,6 +150,113 @@ sub _get_plugin {
   return $plugin;
 }
 
+sub _get_repo_dir {
+  my $self = shift;
+  my %o = validate(@_, {
+    repo => { type => SCALAR },
+    tag =>  { type => SCALAR, default => 'head', },
+  });
+
+  my $data_dir  = $self->config->{data_dir};
+  my $tag_style = $self->config->{tag_style};
+  my $repo      = $o{'repo'};
+  my $tag       = $o{'tag'};
+  my $local     = $self->config->{'repo'}->{$repo}->{'local'};
+
+  if ($tag_style eq 'topdir') {
+    return File::Spec->catdir($data_dir, $tag, $local);
+  }
+  elsif ($tag_style eq 'bottomdir') {
+    return File::Spec->catdir($data_dir, $local, $tag);
+  }
+  else {
+    $self->logger->log_and_croak(level => 'error', message => '_get_repo_dir: Unknown tag_style: '.$tag_style);
+  }
+}
+
+sub add_file {
+  my $self = shift;
+  my %o = validate(
+    @_,
+    {
+      'repo'      => { type => SCALAR },
+      'arch'      => { type => SCALAR },
+      'file'      => { type => SCALAR | ARRAYREF },
+      'force'     => { type => BOOLEAN, default => 0 },
+    },
+  );
+  my $options = {
+    logger    => $self->logger(),
+    repo      => $o{'repo'},
+    arches    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
+    backend   => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
+    dir       => $self->_get_repo_dir(repo => $o{'repo'}),
+    force     => $o{'force'},
+  };
+  my $plugin = $self->_get_plugin(
+    type    => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
+    options => $options,
+  );
+
+  $plugin->add_file($o{'arch'}, $o{'file'});
+}
+sub clean {
+  my $self = shift;
+  my %o = validate(@_, {
+    repo      => { type => SCALAR, },
+    force     => { type => BOOLEAN, optional => 1, },
+  });
+
+  my $options = {
+    logger    => $self->logger(),
+    repo      => $o{'repo'},
+    arches    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
+    backend   => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
+    dir       => $self->_get_repo_dir(repo => $o{'repo'}),
+    force     => $o{'force'},
+  };
+  my $plugin = $self->_get_plugin(
+    type    => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
+    options => $options,
+  );
+
+  $plugin->clean();
+}
+
+sub init {
+  my $self = shift;
+  my %o = validate(@_, {
+    repo => { type => SCALAR, },
+    arch => { type => SCALAR, optional => 1 },
+  });
+
+  my $options = {
+    logger    => $self->logger(),
+    repo      => $o{'repo'},
+    arches    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
+    backend   => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
+    dir       => $self->_get_repo_dir(repo => $o{'repo'}),
+  };
+
+  my $plugin = $self->_get_plugin(
+    type    => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
+    options => $options,
+  );
+
+  $plugin->init($o{'arch'});
+}
+
+sub list {
+  my $self = shift;
+  print "Repository list:\n";
+  print sprintf "|%8s|%8s|%50s|\n", 'Type', 'Mirrored', 'Name';
+  for my $repo (sort keys %{$self->config->{repo}}) {
+    my $type     = $self->config->{repo}->{$repo}->{type};
+    my $mirrored = $self->config->{repo}->{$repo}->{url} ? 'Yes' : 'No';
+    print sprintf "|%8s|%8s|%50s|\n", $type, $mirrored, $repo;
+  }
+}
+
 sub mirror {
   my $self = shift;
   my %o = validate(@_, {
@@ -175,7 +272,7 @@ sub mirror {
     url       => $self->config->{'repo'}->{$o{'repo'}}->{'url'},
     checksums => $o{'checksums'},
     backend   => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
-    dir       => $self->get_repo_dir(repo => $o{'repo'}),
+    dir       => $self->_get_repo_dir(repo => $o{'repo'}),
     ssl_ca    => $self->config->{'repo'}->{$o{'repo'}}->{'ca'} || undef,
     ssl_cert  => $self->config->{'repo'}->{$o{'repo'}}->{'cert'} || undef,
     ssl_key   => $self->config->{'repo'}->{$o{'repo'}}->{'key'} || undef,
@@ -188,45 +285,15 @@ sub mirror {
   $plugin->mirror();
 }
 
-sub clean {
-  my $self = shift;
-  my %o = validate(@_, {
-    repo      => { type => SCALAR, },
-    force     => { type => BOOLEAN, optional => 1, },
-  });
-
-  my $options = {
-    logger    => $self->logger(),
-    repo      => $o{'repo'},
-    arches    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
-    backend   => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
-    dir       => $self->get_repo_dir(repo => $o{'repo'}),
-    force     => $o{'force'},
-  };
-  my $plugin = $self->_get_plugin(
-    type    => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
-    options => $options,
-  );
-
-  $plugin->clean();
-}
-
 sub tag {
   my $self = shift;
-  my %o = validate(@_, {
-    repo     => { type => SCALAR, },
-    src_tag  => { type => SCALAR, },
-    dest_tag => { type => SCALAR, },
-    force    => { type => BOOLEAN, optional => 1, },
-    symlink  => { type => BOOLEAN, optional => 1, },
-  });
-
+  my %o = @_;
   my $options = {
     logger    => $self->logger(),
     repo      => $o{'repo'},
     arches    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
     backend   => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
-    dir       => $self->get_repo_dir(repo => $o{'repo'}),
+    dir       => $self->_get_repo_dir(repo => $o{'repo'}),
     force     => $o{'force'},
   };
 
@@ -236,35 +303,14 @@ sub tag {
   );
 
   $plugin->tag(
-    src_dir  => $self->get_repo_dir(repo => $o{'repo'}, tag => $o{'src_tag'}),
-    src_tag  => $o{'src_tag'},
-    dest_dir => $self->get_repo_dir(repo => $o{'repo'}, tag => $o{'dest_tag'}),
-    dest_tag => $o{'dest_tag'},
+    src_dir  => $self->_get_repo_dir(repo => $o{'repo'}, tag => $o{'src-tag'}),
+    src_tag  => $o{'src-tag'},
+    dest_dir => $self->_get_repo_dir(repo => $o{'repo'}, tag => $o{'tag'}),
+    dest_tag => $o{'tag'},
     symlink  => $o{'symlink'},
   );
 }
 
-sub init {
-  my $self = shift;
-  my %o = validate(@_, {
-    repo     => { type => SCALAR, },
-  });
-
-  my $options = {
-    logger    => $self->logger(),
-    repo      => $o{'repo'},
-    arches    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
-    backend   => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
-    dir       => $self->get_repo_dir(repo => $o{'repo'}),
-  };
-
-  my $plugin = $self->_get_plugin(
-    type    => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
-    options => $options,
-  );
-
-  $plugin->init();
-}
 
 
 1;

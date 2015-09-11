@@ -10,72 +10,32 @@ use Pod::Usage;
 
 use App::Nrepo;
 
-my $options = {
-  'config-file' => 'conf/nrepo.conf',
-};
+my $config_file = 'conf/nrepo.conf';
+my $log_level;
+my $help;
+my $app_options = {};
 
 GetOptions(
-  $options,
-  'action=s',
-  'checksums',
-  'config-file=s',
-  'force',
-  'init',
-  'list',
-  'log-level=s',
-  'mirror',
-  'repo=s',
-  'tag=s',
-  'src-tag=s',
-  'symlink',
-  'h|help',
-);
+  # App Options
+  'action=s'  => \$app_options->{'action'},
+  'file=s@'   => \$app_options->{'file'},
+  'arch=s'    => \$app_options->{'arch'},
+  'checksums' => \$app_options->{'checksums'},
+  'force'     => \$app_options->{'force'},
+  'repo=s'    => \$app_options->{'repo'},
+  'tag=s'     => \$app_options->{'tag'},
+  'src-tag=s' => \$app_options->{'src-tag'},
+  'symlink'   => \$app_options->{'symlink'},
+  # Script options
+  'config-file=s' => \$config_file,
+  'log-level=s'   => \$log_level,
+  'h|help'        => \$help,
+) or pod2usage(-verbose=>2, -output => \*STDERR);
 
-pod2usage(-verbose=>2, -output => \*STDERR) if $options->{'h'} || $options->{'help'};
-sub validate_options {
-  my $options = shift;
-  my $config  = shift;
-
-  unless ($options->{'action'}) {
-    print "ERROR: no action provided\n";
-    pod2usage(-verbose=>2, -output => \*STDERR);
-  }
-  my $action = $options->{'action'};
-  #XXX This is already covered in Nrepo.pm...move it
-  #XXX But we need the cli to handle help, perhaps have it call the modules help method?
-  my $valid_actions = {
-    'list'         => {requires => []},
-    'mirror'       => {requires => ['repo']},
-    'clean'        => {requires => ['repo']},
-    'tag'          => {requires => ['repo']},
-    'init'         => {requires => ['repo']},
-    'add-files'    => {requires => ['repo']},
-    'remove-files' => {requires => ['repo']},
-  };
-
-  if (! $valid_actions->{$action}) {
-    print "ERROR: no action: ${action} not valid\n";
-    pod2usage(-verbose=>2,  -output => \*STDERR);
-  }
-
-  for my $require (@{$valid_actions->{$action}->{requires}}) {
-    if (! $options->{$require}) {
-      print "ERROR: option: ${require} missing for action: ${action}\n";
-      pod2usage(-verbose=>2, -output => \*STDERR);
-    }
-  }
-
-  # Check that the supplied repo is configured
-  if ($options->{'repo'}) {
-    unless ($config->{'repo'}->{$options->{'repo'}}) {
-      print "ERROR: repo: $options->{'repo'} does not exist in configuration!\n";
-      pod2usage(-verbose=>2, -output => \*STDERR);
-    }
-  }
-}
+pod2usage(-verbose=>2, -output => \*STDERR) if $help;
 
 my $conf_o = Config::General->new(
-    -ConfigFile         => $options->{'config-file'},
+    -ConfigFile         => $config_file,
     -UseApacheInclude   => 1,
     -IncludeDirectories => 1,
     -IncludeGlob        => 1,
@@ -85,18 +45,16 @@ my $conf_o = Config::General->new(
 );
 my $config = {$conf_o->getall};
 
-validate_options($options, $config);
-
 # Setup Default Config
 $config->{tag_style}      ||= 'bottomdir';
 $config->{log_file_level} ||= 'info';
 $config->{screen_level}   ||= 'notice';
 # We allow the cli to override the config for ScreenLevel
-$config->{screen_level} = $options->{'log-level'} if $options->{'log-level'};
+$config->{screen_level} = $log_level if $log_level;
 
 # Setup Logging
 my $log_outputs = [
-  [ 'Screen', 'min_level' => $config->{screen_level}, stderr => 0, newline => 1, ]
+  [ 'Screen', 'min_level' => $config->{screen_level}, stderr => 0, newline => 1, ],
 ];
 push @{$log_outputs}, [
   'File',
@@ -109,7 +67,12 @@ my $logger = Log::Dispatch->new(outputs => $log_outputs);
 $logger->debug('logging initialized.');
 
 my $a = App::Nrepo->new(config => $config, logger => $logger);
-$a->go($options);
+my $action = delete $app_options->{'action'};
+# Params::Validate does not like undef which GetOptions will fill with options
+for my $param (keys %{$app_options}) {
+  delete $app_options->{$param} unless defined $app_options->{$param};
+}
+$a->go($action, $app_options);
 
 __END__
 
@@ -121,13 +84,14 @@ nrepo - Repository Management
 
 nrepo --action X [options]
 
+ #XXX update these
  Actions:
-   mirror         Mirror a configured repository (requires --repo, use \'all\' for all configured repositories)
-   tag            Tag a repository (requires --repo)
-   list           List all configured repositories
-   init           Initialise a custom repository (requires --repo)
-   add-files      Add files to a custom repository (requires --repo)
-   remove-files   Remove files from a custom repository (requires --repo)
+   mirror    Mirror a configured repository (requires --repo, use \'all\' for all configured repositories)
+   tag       Tag a repository (requires --repo)
+   list      List all configured repositories
+   init      Initialise a custom repository (requires --repo)
+   add-file  Add files to a custom repository (requires --repo)
+   del-file  Remove files from a custom repository (requires --repo)
 
  Options:
    --repo           The name of the repo for your action
