@@ -43,11 +43,14 @@ sub go {
   }
   elsif ($action eq 'tag') {
     $self->tag(
-      repo => $options->{'repo'},
+      repo     => $options->{'repo'},
       src_tag  => $options->{'src-tag'} || 'head',
       dest_tag => $options->{'tag'},
       symlink  => $options->{'symlink'},
       force    => $options->{'force'});
+  }
+  elsif ($action eq 'init') {
+    $self->init(repo => $options->{'repo'},);
   }
   else {
     $self->logger->log_and_croak(
@@ -239,6 +242,28 @@ sub tag {
     dest_tag => $o{'dest_tag'},
     symlink  => $o{'symlink'},
   );
+}
+
+sub init {
+  my $self = shift;
+  my %o = validate(@_, {
+    repo     => { type => SCALAR, },
+  });
+
+  my $options = {
+    logger    => $self->logger(),
+    repo      => $o{'repo'},
+    arches    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
+    backend   => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
+    dir       => $self->get_repo_dir(repo => $o{'repo'}),
+  };
+
+  my $plugin = $self->_get_plugin(
+    type    => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
+    options => $options,
+  );
+
+  $plugin->init();
 }
 
 

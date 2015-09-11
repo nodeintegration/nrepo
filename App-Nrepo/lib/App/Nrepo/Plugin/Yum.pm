@@ -217,27 +217,62 @@ sub clean_files {
     $base_dir,
   );
 }
+
 sub add_files {
   my $self = shift;
 }
+
 sub remove_files {
   my $self = shift;
 }
-sub init {
+
+sub init_arch {
   my $self = shift;
-  #my $repodata_path = File::Spec->catdir($repo_dir, 'repodata');
-  #$self->app->logger->debug("init: repodata_path: ${repodata_path}");
-  #unless (-d $repodata_path) {
-  #  $self->app->logger->debug("init: make_path: ${repodata_path}");
-  #  my $make_path_error;
-  #  #my $dirs = File::Path->make_path($repodata_path, { error => \$make_path_error },);
-  #  #my $dirs = File::Path->make_path($repodata_path);
-  #  unless (File::Path->make_path($repodata_path)) {
-  #    $self->app->logger->log_and_croak(level => 'error', message => "init: unable to create path: ${repodata_path}");
-  #  }
-  #}
-#
-#  $self->_run_createrepo();
+  my $arch = shift;
+
+  my $dir = File::Spec->catdir($self->dir, $arch);
+
+  $self->logger->debug(sprintf 'init_arch: repo: %s arch: %s dir: %s', $self->repo(), $arch, $dir);
+
+  $self->make_dir($dir);
+  my $packages_dir = 'Packages';
+  my $repodata_dir = 'repodata';
+  $self->make_dir(File::Spec->catdir($dir, $packages_dir));
+
+  #XXX add gpg
+
+  #TODO perhaps replace createrepo with pure perl version at some stage
+  my $createrepo_bin = $self->find_command_path('createrepo');
+
+  unless ($createrepo_bin and -x $createrepo_bin) {
+    $self->logger->log_and_croak(
+      level   => 'error',
+      message => sprintf('init_arch: repo: %s arch: %s unable to find createrepo program in path', $self->repo(), $arch),
+    );
+  }
+
+  my @cmd = ($createrepo_bin, '--basedir', $dir, '--outputdir', $dir, $packages_dir);
+  # --update will reuse the existing metadata if the file is already defined and size/mtime matches
+  # dont do this if we're forcing or the repomd.xml doesnt exist
+  unless ($self->force()) {
+    if (-f File::Spec->catfile($dir, $repodata_dir, 'repomd.xml')) {
+      splice @cmd, 1, 0, '--update';
+    }
+  }
+
+  unless (system(@cmd) == 0) {
+    $self->logger->log_and_croak(
+      level   => 'error',
+      message => sprintf(
+        'init_arch: repo: %s failed to run command: %s with exit code: %s',
+        $self->repo(),
+        join(' ', @cmd),
+        $?,
+      )
+    );
+  }
+
+
 }
 
 sub type {

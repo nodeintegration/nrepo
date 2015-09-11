@@ -5,6 +5,7 @@ use Data::Dumper;
 use Digest::SHA;
 use File::Find qw(find);
 use File::Path qw(make_path remove_tree);
+use File::Spec;
 use LWP::UserAgent;
 use Moo::Role;
 use Module::Path qw[ module_path ];
@@ -56,6 +57,18 @@ sub get_gzip_contents {
   }
 }
 
+sub find_command_path {
+  my $self    = shift;
+  my $command = shift || return;
+
+  my @path = File::Spec->path();
+  for my $p (@path) {
+    my $command_path = File::Spec->catfile($p, $command);
+    return $command_path if -f $command_path;
+  }
+  return undef;
+}
+
 sub make_dir {
   my $self = shift;
   my $dir  = shift;
@@ -71,7 +84,7 @@ sub remove_dir {
   my $self = shift;
   my $dir  = shift;
   if (-d $dir) {
-    my $dirs = remove_tree($dir, { error => \$err });
+    my $dirs = remove_tree($dir);
     $self->logger->log_and_croak(level => 'error', message => "Failed to remove path: ${dir}") if -d $dir;
     $self->logger->debug("removed path: ${dir}");
     return 1;
@@ -142,8 +155,10 @@ sub clean {
 
 sub init {
   my $self = shift;
-  #$plugin->init();
-  print "Here\n";
+  $self->logger->info(sprintf 'init: repo: %s dir: %s', $self->repo(), $self->dir());
+  for my $arch (@{$self->arches()}) {
+    $self->init_arch($arch);
+  }
 
 }
 
