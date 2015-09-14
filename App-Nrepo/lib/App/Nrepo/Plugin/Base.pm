@@ -11,8 +11,8 @@ use Digest::SHA;
 use File::Find qw(find);
 use File::Path qw(make_path remove_tree);
 use File::Spec;
+use HTTP::Tiny;
 use IO::Zlib;
-use LWP::UserAgent;
 use Module::Path qw[ module_path ];
 use Module::Runtime qw[ compose_module_name ];
 use Params::Validate qw(:all);
@@ -29,20 +29,20 @@ has url       => ( is => 'ro', optional => 1 );
 has checksums => ( is => 'ro', optional => 1 );
 has force     => ( is => 'ro', optional => 1 );
 has arches    => ( is => 'ro', required => 1 );
-has ua        => ( is => 'lazy' );
+has http      => ( is => 'lazy' );
 has ssl_ca    => ( is => 'ro', optional => 1 );
 has ssl_cert  => ( is => 'ro', optional => 1 );
 has ssl_key   => ( is => 'ro', optional => 1 );
 
-sub _build_ua {
+sub _build_http {
   my $self = shift;
 
   my %o;
-  $o{ssl_opts}->{'SSL_ca_file'}   = $self->ssl_ca()   if $self->can('ssl_ca');
-  $o{ssl_opts}->{'SSL_cert_file'} = $self->ssl_cert() if $self->can('ssl_cert');
-  $o{ssl_opts}->{'SSL_key_file'}  = $self->ssl_key()  if $self->can('ssl_key');
+  $o{SSL_options}->{'SSL_ca_file'}   = $self->ssl_ca()   if $self->can('ssl_ca');
+  $o{SSL_options}->{'SSL_cert_file'} = $self->ssl_cert() if $self->can('ssl_cert');
+  $o{SSL_options}->{'SSL_key_file'}  = $self->ssl_key()  if $self->can('ssl_key');
 
-  return LWP::UserAgent->new(%o);
+  return HTTP::Tiny->new(%o);
 }
 
 sub get_gzip_contents {
@@ -307,7 +307,7 @@ sub download_binary_file {
 
   while (!$success && $retry_count <= $retry_limit) {
     my $t0 = [gettimeofday];
-    my $res = $self->ua->get($o{'url'}, ':content_file' => $o{'dest'});
+    my $res = $self->http->mirror($o{'url'}, $o{'dest'});
     my $elapsed = tv_interval($t0);
 
     $self->logger->debug(
@@ -319,16 +319,17 @@ sub download_binary_file {
       )
     );
 
-    if ($res->is_success) {
+    if ($res->{'success'}) {
       return 1;
     }
     else {
       $self->logger->debug(
         sprintf(
-          'download_binary_file: repo: %s url: %s failed with status: %s',
+          'download_binary_file: repo: %s url: %s failed with status: %s reason: %s',
           $self->repo(),
           $o{url},
-          $res->status_line,
+          $res->{'status'},
+          $res->{'reason'},
         )
       );
       $retry_count++;
