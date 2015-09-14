@@ -25,13 +25,11 @@ sub go {
 
   $self->logger->log_and_croak(level => 'error', message => 'ERROR: action not supplied.') unless $action;
 
-  if ($action eq 'add-file'){
-    $self->add_file(@o)
-  }
-  elsif($action eq 'del-file'){
-    $self->del_file(@o)
-  }
-  elsif($action eq 'clean'){
+  my %actions;
+
+  $actions{'add-file'} = sub { $self->add_file(@o) };
+  $actions{'del-file'} = sub { $self->del_file(@o) };
+  $actions{'clean'} = sub {
     %options = validate(
       @o,
       {
@@ -49,12 +47,10 @@ sub go {
     else {
       $self->clean(%options);
     }
-  }
-  elsif($action eq 'init'){$self->init(@o)}
-  elsif($action eq 'list'){
-    $self->list();
-  }
-  elsif($action eq 'mirror'){
+  };
+  $actions{'init'} = sub { $self->init(@o) };
+  $actions{'list'} = sub { $self->list() };
+  $actions{'mirror'} = sub {
     %options = validate(
       @o,
       {
@@ -74,8 +70,8 @@ sub go {
     else {
       $self->mirror(%options);
     }
-  }
-  elsif($action eq 'tag'){
+  };
+  $actions{'tag'} = sub {
     %options = validate(
       @o,
       {
@@ -87,6 +83,10 @@ sub go {
       },
     );
     $self->tag(%options);
+  };
+
+  if ($actions{$action}) {
+      $actions{$action}->();
   }
   else {
     $self->logger->log_and_croak(level => 'error', message => "ERROR: ${action} not supported.");
