@@ -215,7 +215,6 @@ sub add_file {
     },
   );
   my $options = {
-    logger    => $self->logger(),
     repo      => $o{'repo'},
     arches    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
     backend   => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
@@ -267,7 +266,6 @@ sub del_file {
     },
   );
   my $options = {
-    logger    => $self->logger(),
     repo      => $o{'repo'},
     arches    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
     backend   => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
@@ -325,7 +323,6 @@ sub _clean {
   my ($self, %o) = @_;
 
   my $options = {
-    logger    => $self->logger(),
     repo      => $o{'repo'},
     arches    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
     backend   => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
@@ -366,7 +363,6 @@ sub init {
   });
 
   my $options = {
-    logger    => $self->logger(),
     repo      => $o{'repo'},
     arches    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
     backend   => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
@@ -450,7 +446,6 @@ sub _mirror {
   my ($self, %o) = @_;
 
   my $options = {
-    logger    => $self->logger(),
     repo      => $o{'repo'},
     arches    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
     url       => $self->config->{'repo'}->{$o{'repo'}}->{'url'},
@@ -520,7 +515,6 @@ sub tag {
   );
 
   my $options = {
-    logger    => $self->logger(),
     repo      => $o{'repo'},
     arches    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
     backend   => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
