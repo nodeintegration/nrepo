@@ -3,8 +3,9 @@ package App::Nrepo::Plugin::Yum;
 use Moo;
 use Carp;
 use IO::Zlib;
+use File::Copy qw(copy);
 use File::Find qw(find);
-use File::Basename qw(dirname);
+use File::Basename qw(basename dirname);
 use Params::Validate qw(:all);
 use Data::Dumper qw(Dumper);
 use XML::Twig;
@@ -230,9 +231,20 @@ sub add_file {
     $self->logger->log_and_croak(level => 'error', message => sprintf 'add_file: arch: %s is not in config for repo: %s', $arch, $self->repo());
   }
 
-  #XXX TODO
-  print " DEBUG: add_file: " . $self->packages_dir() . $/;
+  for my $file (@${files}) {
+    my $filename = basename($file);
+    my $dest_file = File::Spec->catfile($self->dir(), $arch, $self->packages_dir(), $filename);
+    $self->logger->debug(sprintf 'add_file: repo: %s arch: %s file: %s dest_file: %s', $self->repo(), $arch, $file, $dest_file);
 
+    if (-f $dest_file && ! $self->force()) {
+      $self->logger->log_and_croak(level => 'error', message => sprintf 'add_file: repo: %s dest_file exists and force not enabled: %s', $self->repo(), $dest_file);
+    }
+
+    copy ($file, $dest_file) || $self->logger->log_and_croak(level => 'error', message => sprintf 'add_file: repo: %s failed to copy file to destination: %s', $self->repo(), $!);
+
+  }
+
+  $self->init_arch($arch);
 
 }
 
@@ -242,10 +254,23 @@ sub del_file {
   my $files = shift;
 
   unless ($self->validate_arch($arch)) {
-    $self->logger->log_and_croak(level => 'error', message => sprintf 'add_file: arch: %s is not in config for repo: %s', $arch, $self->repo());
+    $self->logger->log_and_croak(level => 'error', message => sprintf 'del_file: arch: %s is not in config for repo: %s', $arch, $self->repo());
   }
 
-  #XXX TODO
+  for my $file (@${files}) {
+    my $filename = basename($file);
+    my $dest_file = File::Spec->catfile($self->dir(), $arch, $self->packages_dir(), $filename);
+    $self->logger->debug(sprintf 'del_file: repo: %s arch: %s dest_file: %s', $self->repo(), $arch, $dest_file);
+
+    unless (-f $dest_file) {
+      $self->logger->log_and_croak(level => 'error', message => sprintf 'del_file: repo: %s dest_file: %s does not exist', $self->repo(), $dest_file);
+    }
+
+    unlink $dest_file || $self->logger->log_and_croak(level => 'error', message => sprintf 'del_file: repo: %s failed to del file: %s from destination: %s', $self->repo(), $dest_file, $!);
+
+  }
+
+  $self->init_arch($arch);
 }
 
 sub init_arch {
@@ -280,6 +305,7 @@ sub init_arch {
     }
   }
 
+  $self->logger->debug(sprintf 'init_arch: running command: %s', join(' ', @cmd));
   unless (system(@cmd) == 0) {
     $self->logger->log_and_croak(
       level   => 'error',
