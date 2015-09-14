@@ -60,82 +60,24 @@ For each actions required options see its appropriate method below
 =cut
 
 sub go {
-  my $self = shift;
-  my $action = shift;
-  my @o = @_;
-  my %options;
+  my ($self, $action, @args) = @_;
   $self->_validate_config();
 
-  $self->logger->log_and_croak(level => 'error', message => 'ERROR: action not supplied.') unless $action;
+  my $dispatch = {
+    'add-file' => \&add_file,
+    'del-file' => \&del_file,
+    'clean'    => \&clean,
+    'init'     => \&init,
+    'list'     => \&list,
+    'mirror'   => \&mirror,
+    'tag'      => \&tag,
+  };
 
-  if ($action eq 'add-file'){
-    $self->add_file(@o)
-  }
-  elsif($action eq 'del-file'){
-    $self->del_file(@o)
-  }
-  elsif($action eq 'clean'){
-    %options = validate(
-      @o,
-      {
-        'repo' => { type => SCALAR },
-        'arch' => { type => SCALAR, optional => 1 },
-      },
-    );
-    if ($options{'repo'} eq 'all') {
-      my %o = %options;
-      for my $repo (keys %{$self->config->{'repo'}}) {
-        $o{'repo'} = $repo;
-        $self->clean(%o);
-      }
-    }
-    else {
-      $self->clean(%options);
-    }
-  }
-  elsif($action eq 'init'){
-    $self->init(@o)
-  }
-  elsif($action eq 'list'){
-    $self->list();
-  }
-  elsif($action eq 'mirror'){
-    %options = validate(
-      @o,
-      {
-        'repo'      => { type => SCALAR },
-        'force'     => { type => BOOLEAN, default  => 0 },
-        'arch'      => { type => SCALAR, optional => 1 },
-        'checksums' => { type => SCALAR, optional => 1},
-      },
-    );
-    if ($options{'repo'} eq 'all') {
-      my %o = %options;
-      for my $repo (keys %{$self->config->{'repo'}}) {
-        $o{'repo'} = $repo;
-        $self->mirror(%o);
-      }
-    }
-    else {
-      $self->mirror(%options);
-    }
-  }
-  elsif($action eq 'tag'){
-    %options = validate(
-      @o,
-      {
-        'repo'    => { type => SCALAR },
-        'tag'     => { type => SCALAR },
-        'src-tag' => { type => SCALAR,  default => 'head' },
-        'symlink' => { type => BOOLEAN, default => 0 },
-        'force'   => { type => BOOLEAN, default => 0 },
-      },
-    );
-    $self->tag(%options);
-  }
-  else {
+  exists $dispatch->{$action} ||
     $self->logger->log_and_croak(level => 'error', message => "ERROR: ${action} not supported.");
-  }
+
+  $dispatch->{$action}->($self, @args);
+
   exit(0);
 }
 
@@ -359,9 +301,25 @@ If 'all' is supplied it will perform this action on all repositories in config
 sub clean {
   my $self = shift;
   my %o = validate(@_, {
-    repo      => { type => SCALAR, },
-    force     => { type => BOOLEAN, optional => 1, },
+    repo  => { type => SCALAR, },
+    arch  => { type => SCALAR, optional => 1 },
+    force => { type => BOOLEAN, optional => 1, },
   });
+
+  if ($o{'repo'} eq 'all') {
+    my %options = %o;
+    for my $repo (keys %{$self->config->{'repo'}}) {
+      $options{'repo'} = $repo;
+      $self->_clean(%options);
+    }
+  }
+  else {
+    $self->_clean(%o);
+  }
+}
+
+sub _clean {
+  my ($self, %o) = @_;
 
   my $options = {
     logger    => $self->logger(),
@@ -467,10 +425,26 @@ With this enabled updating a mirror can take quite a long time
 sub mirror {
   my $self = shift;
   my %o = validate(@_, {
-    repo      => { type => SCALAR, },
-    checksums => { type => BOOLEAN, optional => 1, },
-    force     => { type => BOOLEAN, optional => 1, },
+    'repo'      => { type => SCALAR },
+    'force'     => { type => BOOLEAN, default => 0 },
+    'arch'      => { type => SCALAR, optional => 1 },
+    'checksums' => { type => SCALAR, optional => 1 },
   });
+
+  if ($o{'repo'} eq 'all') {
+    my %options = %o;
+    for my $repo (keys %{$self->config->{'repo'}}) {
+      $options{'repo'} = $repo;
+      $self->_mirror(%options);
+    }
+  }
+  else {
+    $self->_mirror(%o);
+  }
+}
+
+sub _mirror {
+  my ($self, %o) = @_;
 
   my $options = {
     logger    => $self->logger(),
@@ -531,7 +505,17 @@ Force will overwrite a pre existing dest-tag location
 
 sub tag {
   my $self = shift;
-  my %o = @_;
+  my %o = validate(
+    @_,
+    {
+      'repo'    => { type => SCALAR },
+      'tag'     => { type => SCALAR },
+      'src-tag' => { type => SCALAR,  default => 'head' },
+      'symlink' => { type => BOOLEAN, default => 0 },
+      'force'   => { type => BOOLEAN, default => 0 },
+    },
+  );
+
   my $options = {
     logger    => $self->logger(),
     repo      => $o{'repo'},
