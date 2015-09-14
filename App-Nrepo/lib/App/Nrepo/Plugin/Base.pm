@@ -72,7 +72,7 @@ sub find_command_path {
   my @path = File::Spec->path();
   for my $p (@path) {
     my $command_path = File::Spec->catfile($p, $command);
-    return $command_path if -f $command_path;
+    return $command_path if -x $command_path;
   }
   return;
 }
