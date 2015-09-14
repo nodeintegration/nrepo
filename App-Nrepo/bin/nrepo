@@ -13,7 +13,7 @@ use App::Nrepo::Logger;
 
 # VERSION
 
-my $config_file = 'conf/nrepo.conf';
+my $config_file = '/etc/nrepo.conf';
 my $log_level;
 my $help;
 my $app_options = {};
