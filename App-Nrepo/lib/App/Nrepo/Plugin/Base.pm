@@ -16,10 +16,12 @@ use Module::Path qw[ module_path ];
 use Module::Runtime qw[ compose_module_name ];
 use Params::Validate qw(:all);
 use Time::HiRes qw(gettimeofday tv_interval);
+use App::Nrepo::Logger;
+
 
 # VERSION
 
-has logger    => ( is => 'ro', required => 1 );
+has logger    => ( is => 'ro', default => sub {App::Nrepo::Logger->new()} );
 has repo      => ( is => 'ro', required => 1 );
 has dir       => ( is => 'ro', required => 1 );
 has url       => ( is => 'ro', optional => 1 );

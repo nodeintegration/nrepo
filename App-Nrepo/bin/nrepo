@@ -9,6 +9,7 @@ use Log::Dispatch;
 use Pod::Usage;
 
 use App::Nrepo;
+use App::Nrepo::Logger;
 
 # VERSION
 
@@ -66,6 +67,7 @@ push @{$log_outputs}, [
   'mode'      => '>>',
 ] if $config->{log_file};
 my $logger = Log::Dispatch->new(outputs => $log_outputs);
+App::Nrepo::Logger->load($logger);
 $logger->debug('logging initialized.');
 
 my $a = App::Nrepo->new(config => $config, logger => $logger);

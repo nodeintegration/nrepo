@@ -10,12 +10,15 @@ use Data::Dumper;
 use Params::Validate qw(:all);
 use Module::Pluggable::Object;
 use File::Spec;
+use App::Nrepo::Logger;
+
+
 
 # VERSION
 
 
 has config => ( is => 'ro' );
-has logger => ( is => 'ro' );
+has logger => ( is => 'ro', default => sub {App::Nrepo::Logger->new()} );
 
 =head1 NAME
 
