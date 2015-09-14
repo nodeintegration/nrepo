@@ -306,6 +306,9 @@ sub download_binary_file {
     )
   );
 
+  # HTTP::Tiny's mirror function does not seem to validate the file if its locally present in any way
+  unlink $o{dest} if -f $o{dest};
+
   my $retry_count = 0;
   my $retry_limit = $o{retry_limit};
   my $success;

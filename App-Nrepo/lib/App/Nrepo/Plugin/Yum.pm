@@ -126,14 +126,25 @@ sub parse_repomd {
       if ($c->name eq 'location') {
         $data->{'location'} = $c->att('href');
       }
-      elsif ($c->name eq 'checksum' && $self->checksums()) {
-        $data->{'validate'}->{'type'} = $c->att('type');
-        $data->{'validate'}->{'value'} = $c->text;
+      elsif ($c->name eq 'checksum') {
+        $data->{'checksum'}->{'type'} = $c->att('type');
+        $data->{'checksum'}->{'value'} = $c->text;
       }
-      elsif ($c->name eq 'size' && ! $self->checksums()){
-        $data->{'validate'}->{'type'}  = 'size';
-        $data->{'validate'}->{'value'} = $c->text;
+      elsif ($c->name eq 'size'){
+        $data->{'size'}->{'type'}  = 'size';
+        $data->{'size'}->{'value'} = $c->text;
       }
+    }
+
+    # For some reason i have found a few repomd.xml files that do NOT
+    # have a size attribute ...specifically updateinfo type
+    # so as a work around we will try size if checksums is not enabled
+    # however for that file we'll revert to checksums if size is not available
+    if (! $self->checksums() && $data->{'size'}) {
+      $data->{'validate'} = $data->{'size'};
+    }
+    else {
+      $data->{'validate'} = $data->{'checksum'};
     }
     $self->logger->log_and_croak(level => 'error', message => "repomd xml not valid: $file") unless $data->{'location'};
     push @files, $data;
