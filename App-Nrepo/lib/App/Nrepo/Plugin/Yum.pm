@@ -38,8 +38,26 @@ sub get_metadata {
     # Make sure dir exists
     $self->make_dir($dest_dir);
 
+    # Check if we have the local file
+    my $download;
+    if ($type eq 'repomd') {
+      $download++;
+    }
+    elsif (! $self->validate_file(
+        filename => $dest_file,
+        check    => $m->{'validate'}->{'type'},
+        value    => $m->{'validate'}->{'value'},
+      )) {
+      $download++;
+    }
+
     # Grab the file
-    $self->download_binary_file(url => $m_url, dest => $dest_file);
+    if ($download) {
+      $self->download_binary_file(url => $m_url, dest => $dest_file);
+    }
+    else {
+      $self->logger->debug(sprintf('get_metadata: repo: %s arch: %s file: %s skipping as its deemed up to date', $self->repo(), $arch, $location));
+    }
 
     # Parse the xml and retrieve the primary file location
     if ($type eq 'repomd') {
@@ -108,11 +126,13 @@ sub parse_repomd {
       if ($c->name eq 'location') {
         $data->{'location'} = $c->att('href');
       }
-      elsif ($c->name eq 'checksum') {
-        $data->{'checksum'} = $c->att('type');
+      elsif ($c->name eq 'checksum' && $self->checksums()) {
+        $data->{'validate'}->{'type'} = $c->att('type');
+        $data->{'validate'}->{'value'} = $c->text;
       }
-      elsif ($c->name eq 'size'){
-        $data->{'size'} = $c->text;
+      elsif ($c->name eq 'size' && ! $self->checksums()){
+        $data->{'validate'}->{'type'}  = 'size';
+        $data->{'validate'}->{'value'} = $c->text;
       }
     }
     $self->logger->log_and_croak(level => 'error', message => "repomd xml not valid: $file") unless $data->{'location'};
@@ -139,12 +159,13 @@ sub parse_primary {
       elsif ($c->name eq 'name') {
         $data->{'name'} = $c->text;
       }
-      elsif ($c->name eq 'checksum') {
-        $data->{'checksum'}->{'type'} = $c->att('type');
-        $data->{'checksum'}->{'value'} = $c->text;
+      elsif ($c->name eq 'checksum' && $self->checksums()) {
+        $data->{'validate'}->{'type'} = $c->att('type');
+        $data->{'validate'}->{'value'} = $c->text;
       }
-      elsif ($c->name eq 'size'){
-        $data->{'size'} = $c->att('package');
+      elsif ($c->name eq 'size' && ! $self->checksums()){
+        $data->{'validate'}->{'type'}  = 'size';
+        $data->{'validate'}->{'value'} = $c->att('package');
       }
     }
     push @{$packages}, $data;
@@ -163,9 +184,7 @@ sub get_packages {
 
   for my $package (@{$o{'packages'}}) {
     my $name     = $package->{'name'};
-    my $size     = $package->{'size'};
     my $location = $package->{'location'};
-    my $checksum = $package->{'checksum'};
 
     my $p_url     = join('/', ($self->url, $location));
     $p_url        =~ s/%ARCH%/$arch/;
@@ -176,24 +195,16 @@ sub get_packages {
     $self->make_dir($dest_dir);
 
     # Check if we have the local file
-    my $download;
-    if ($self->force) {
-      $download++;
-    }
-    elsif ($self->checksums) {
-      $download++ unless $self->validate_file(filename => $dest_file, check => $checksum->{'type'}, value => $checksum->{'value'});
-    }
-    else {
-      $download++ unless $self->validate_file(filename => $dest_file, check => 'size', value => $size);
-    }
-
-    # Grab the file
-    if ($download) {
-      $self->logger->notice(sprintf('get_packages: repo: %s arch: %s package: %s', $self->repo(), $arch, $name));
+    if (! $self->validate_file(
+        filename => $dest_file,
+        check    => $package->{'validate'}->{'type'},
+        value    => $package->{'validate'}->{'value'},
+      )) {
+      $self->logger->notice(sprintf('get_packages: repo: %s arch: %s package: %s', $self->repo(), $arch, $location));
       $self->download_binary_file(url => $p_url, dest => $dest_file);
     }
     else {
-      $self->logger->debug(sprintf('get_packages: repo: %s arch: %s package: %s skipping as its deemed up to date', $self->repo(), $arch, $name));
+      $self->logger->debug(sprintf('get_packages: repo: %s arch: %s package: %s skipping as its deemed up to date', $self->repo(), $arch, $location));
     }
   }
 }

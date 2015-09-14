@@ -119,11 +119,16 @@ sub validate_file {
     value    => { type => SCALAR },
   });
 
+  # If theres no file, its not valid
   return 0 unless -f $o{'filename'};
+  # If force is enabled, its not valid
+  return 0 if $self->force();
 
+  # Check against size
   if ($o{'check'} eq 'size') {
     return $self->_validate_file_size($o{'filename'}, $o{'value'});
   }
+  # Check against sha256
   elsif ($o{'check'} eq 'sha256') {
     return $self->_validate_file_sha256($o{'filename'}, $o{'value'});
   }
