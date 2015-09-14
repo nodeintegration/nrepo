@@ -21,8 +21,12 @@ sub go {
 
   $self->logger->log_and_croak(level => 'error', message => 'ERROR: action not supplied.') unless $action;
 
-  if ($action eq 'add-file'){$self->add_file(@o)}
-  elsif($action eq 'del-file'){$self->del_file(@o)}
+  if ($action eq 'add-file'){
+    $self->add_file(@o)
+  }
+  elsif($action eq 'del-file'){
+    $self->del_file(@o)
+  }
   elsif($action eq 'clean'){
     %options = validate(
       @o,
@@ -200,6 +204,33 @@ sub add_file {
 
   $plugin->add_file($o{'arch'}, $o{'file'});
 }
+
+sub del_file {
+  my $self = shift;
+  my %o = validate(
+    @_,
+    {
+      'repo'      => { type => SCALAR },
+      'arch'      => { type => SCALAR },
+      'file'      => { type => SCALAR | ARRAYREF },
+    },
+  );
+  my $options = {
+    logger    => $self->logger(),
+    repo      => $o{'repo'},
+    arches    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
+    backend   => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
+    dir       => $self->_get_repo_dir(repo => $o{'repo'}),
+    force     => $o{'force'},
+  };
+  my $plugin = $self->_get_plugin(
+    type    => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
+    options => $options,
+  );
+
+  $plugin->del_file($o{'arch'}, $o{'file'});
+}
+
 sub clean {
   my $self = shift;
   my %o = validate(@_, {
