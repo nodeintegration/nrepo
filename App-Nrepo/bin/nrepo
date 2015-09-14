@@ -84,6 +84,12 @@ __END__
 
 nrepo - Repository Management
 
+=head1 DESCRIPTION
+
+Nrepo is designed to be an extensible repository management system
+Currently it provides a basic framework and support for Yum based repositories.
+Stay tuned for more!
+
 =head1 SYNOPSIS
 
 nrepo --action X [options]
