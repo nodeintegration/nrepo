@@ -1,5 +1,9 @@
 package App::Nrepo::Plugin::Base;
 
+use Moo::Role;
+use strictures 2;
+use namespace::clean;
+
 use Carp;
 use Data::Dumper;
 use Digest::SHA;
@@ -7,12 +11,12 @@ use File::Find qw(find);
 use File::Path qw(make_path remove_tree);
 use File::Spec;
 use LWP::UserAgent;
-use Moo::Role;
 use Module::Path qw[ module_path ];
 use Module::Runtime qw[ compose_module_name ];
-use namespace::clean;
 use Params::Validate qw(:all);
 use Time::HiRes qw(gettimeofday tv_interval);
+
+# VERSION
 
 has logger    => ( is => 'ro', required => 1 );
 has repo      => ( is => 'ro', required => 1 );
@@ -66,7 +70,7 @@ sub find_command_path {
     my $command_path = File::Spec->catfile($p, $command);
     return $command_path if -f $command_path;
   }
-  return undef;
+  return;
 }
 
 sub make_dir {
@@ -334,14 +338,14 @@ sub download_binary_file {
         ) if $retry_count;
       }
       else {
-        $self->logger->debug(
-          sprintf(
+        $self->logger->log_and_croak(
+          level => 'error',
+          message => sprintf(
             'download_binary_file: repo: %s url: %s failed and exhausted all retries',
             $self->repo(),
             $o{url},
           )
         );
-        return undef;
       }
     }
   }

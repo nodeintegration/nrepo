@@ -10,6 +10,8 @@ use Pod::Usage;
 
 use App::Nrepo;
 
+# VERSION
+
 my $config_file = 'conf/nrepo.conf';
 my $log_level;
 my $help;

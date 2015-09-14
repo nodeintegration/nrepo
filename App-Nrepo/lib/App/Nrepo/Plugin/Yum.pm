@@ -1,6 +1,8 @@
 package App::Nrepo::Plugin::Yum;
 
 use Moo;
+use strictures 2;
+
 use Carp;
 use IO::Zlib;
 use File::Copy qw(copy);
@@ -9,6 +11,8 @@ use File::Basename qw(basename dirname);
 use Params::Validate qw(:all);
 use Data::Dumper qw(Dumper);
 use XML::Twig;
+
+# VERSION
 
 with 'App::Nrepo::Plugin::Base';
 

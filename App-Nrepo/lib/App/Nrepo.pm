@@ -1,13 +1,17 @@
 package App::Nrepo;
 
 use Moo;
+use strictures 2;
+use namespace::clean;
 use Carp;
 use Cwd qw(getcwd);
 use Data::Dumper;
-use namespace::clean;
 use Params::Validate qw(:all);
 use Module::Pluggable::Object;
 use File::Spec;
+
+# VERSION
+
 
 has config => ( is => 'ro' );
 has logger => ( is => 'ro' );
