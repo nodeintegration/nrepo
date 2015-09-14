@@ -1,3 +1,4 @@
+#!/bin/false
 package App::Nrepo::Plugin::Yum;
 
 use Moo;
@@ -235,9 +236,12 @@ sub add_file {
     $self->logger->log_and_croak(level => 'error', message => sprintf 'add_file: arch: %s is not in config for repo: %s', $arch, $self->repo());
   }
 
+  my $package_dir = File::Spec->catdir($self->dir(), $arch, $self->packages_dir());
+  $self->make_dir($package_dir) unless -d $package_dir;
+
   for my $file (@${files}) {
     my $filename = basename($file);
-    my $dest_file = File::Spec->catfile($self->dir(), $arch, $self->packages_dir(), $filename);
+    my $dest_file = File::Spec->catfile($self->dir(), $arch, $package_dir, $filename);
     $self->logger->debug(sprintf 'add_file: repo: %s arch: %s file: %s dest_file: %s', $self->repo(), $arch, $file, $dest_file);
 
     if (-f $dest_file && ! $self->force()) {

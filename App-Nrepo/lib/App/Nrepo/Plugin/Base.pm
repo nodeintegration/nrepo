@@ -1,3 +1,4 @@
+#!/bin/false
 package App::Nrepo::Plugin::Base;
 
 use Moo::Role;

@@ -1,3 +1,4 @@
+#!/bin/false
 package App::Nrepo;
 
 use Moo;
@@ -15,6 +16,48 @@ use File::Spec;
 
 has config => ( is => 'ro' );
 has logger => ( is => 'ro' );
+
+=head1 NAME
+
+App::Nrepo - An application to handle management of various software repositories
+This module is purely to designed to be used with the accompanying script bin/nrepo
+Please look at its pod for instantiating of this Module
+
+=head2 Methods
+
+=over 4
+
+=cut
+
+
+=item C<go>
+
+Entry point for this object
+my $o = App::Nrepo->new(config => $hashref, logger => Log::Dispatch->new());
+$o->go($action, %options);
+Valid actions:
+
+=over 4
+
+=item C<add-file>
+
+=item C<del-file>
+
+=item C<clean>
+
+=item C<init>
+
+=item C<list>
+
+=item C<mirror>
+
+=item C<tag>
+
+=back
+
+For each actions required options see its appropriate method below
+
+=cut
 
 sub go {
   my $self = shift;
@@ -50,7 +93,9 @@ sub go {
       $self->clean(%options);
     }
   }
-  elsif($action eq 'init'){$self->init(@o)}
+  elsif($action eq 'init'){
+    $self->init(@o)
+  }
   elsif($action eq 'list'){
     $self->list();
   }
@@ -93,6 +138,7 @@ sub go {
   }
   exit(0);
 }
+
 sub _validate_config {
   my $self = shift;
 
@@ -182,6 +228,36 @@ sub _get_repo_dir {
   }
 }
 
+=item C<add_file>
+
+Action: add-file
+
+Description: Adds a file to a local repository and updates the related metadata
+
+Options:
+
+=over 4
+
+=item C<repo>
+
+The name of the repository as reflected in the config
+
+=item C<arch>
+
+The arch this package should be added to as reflected in the config
+
+=item C<file>
+
+The path of the file to be added to the repository
+
+=item C<force>
+
+Boolean to enable force overwriting an existing file in the repository
+
+=back
+
+=cut
+
 sub add_file {
   my $self = shift;
   my %o = validate(
@@ -209,6 +285,32 @@ sub add_file {
   $plugin->add_file($o{'arch'}, $o{'file'});
 }
 
+=item C<del_file>
+
+Action: del-file
+
+Description: Removes a file to a local repository and updates the related metadata
+
+Options:
+
+=over 4
+
+=item C<repo>
+
+The name of the repository as reflected in the config
+
+=item C<arch>
+
+The arch this package should be removed from as reflected in the config
+
+=item C<file>
+
+The filename to be removed to the repository
+
+=back
+
+=cut
+
 sub del_file {
   my $self = shift;
   my %o = validate(
@@ -235,6 +337,25 @@ sub del_file {
   $plugin->del_file($o{'arch'}, $o{'file'});
 }
 
+=item C<clean>
+
+Action: clean
+
+Description: Removes files from a repository that are not referenced in the metadata
+
+Options:
+
+=over 4
+
+=item C<repo>
+
+The name of the repository as reflected in the config
+If 'all' is supplied it will perform this action on all repositories in config
+
+=back
+
+=cut
+
 sub clean {
   my $self = shift;
   my %o = validate(@_, {
@@ -257,6 +378,24 @@ sub clean {
 
   $plugin->clean();
 }
+
+=item C<init>
+
+Action: init
+
+Description: Initialises a custom repository by generating the appropriate metadata files
+
+Options:
+
+=over 4
+
+=item C<repo>
+
+The name of the repository as reflected in the config
+
+=back
+
+=cut
 
 sub init {
   my $self = shift;
@@ -281,6 +420,14 @@ sub init {
   $plugin->init($o{'arch'});
 }
 
+=item C<list>
+
+Action: list
+
+Description: Lists the repositories as reflected in the config
+
+=cut
+
 sub list {
   my $self = shift;
   print "Repository list:\n";
@@ -291,6 +438,31 @@ sub list {
     print sprintf "|%8s|%8s|%50s|\n", $type, $mirrored, $repo;
   }
 }
+
+=item C<mirror>
+
+Action: mirror
+
+Description: Mirrors repository from upstream provider into the head tag
+
+Options:
+
+=over 4
+
+=item C<repo>
+
+The name of the repository as reflected in the config
+If 'all' is supplied it will perform this action on all repositories in config
+
+=item C<checksums>
+
+By default we just use the manifests information about size of packages to determine if the local file
+is valid. If you want to have checksums used enable this boolean flag.
+With this enabled updating a mirror can take quite a long time
+
+=back
+
+=cut
 
 sub mirror {
   my $self = shift;
@@ -320,6 +492,43 @@ sub mirror {
   $plugin->mirror();
 }
 
+=item C<tag>
+
+Action: tag
+
+Description: Tags a repository at a particular state
+
+Options:
+
+=over 4
+
+=item C<repo>
+
+The name of the repository as reflected in the config
+
+=item C<src-tag>
+
+The source tag to use for this operation, by default this is 'head'
+The source tag must pre exist.
+
+=item C<dest-tag>
+
+The destination tag to use for this operation.
+
+=item C<symlink>
+
+This will make the link operation use a symlink instead of hardlinking
+For example you may tag every time you update from upstream but you move a production tag around...provides easy roll back
+for your clients package configuration
+
+=item C<force>
+
+Force will overwrite a pre existing dest-tag location
+
+=back
+
+=cut
+
 sub tag {
   my $self = shift;
   my %o = @_;
@@ -346,9 +555,12 @@ sub tag {
   );
 }
 
-
-
 1;
+
+=back
+
+=cut
+
 __END__
 
 # ABSTRACT: nrepo is a tool to manage linux repositories.
