@@ -11,6 +11,7 @@ use Digest::SHA;
 use File::Find qw(find);
 use File::Path qw(make_path remove_tree);
 use File::Spec;
+use IO::Zlib;
 use LWP::UserAgent;
 use Module::Path qw[ module_path ];
 use Module::Runtime qw[ compose_module_name ];

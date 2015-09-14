@@ -5,7 +5,6 @@ use Moo;
 use strictures 2;
 
 use Carp;
-use IO::Zlib;
 use File::Copy qw(copy);
 use File::Find qw(find);
 use File::Basename qw(basename dirname);
