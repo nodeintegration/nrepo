@@ -86,18 +86,41 @@ nrepo - Repository Management
 
 nrepo --action X [options]
 
- #XXX update these
- Actions:
-   mirror    Mirror a configured repository (requires --repo, use \'all\' for all configured repositories)
-   tag       Tag a repository (requires --repo)
-   list      List all configured repositories
-   init      Initialise a custom repository (requires --repo)
-   add-file  Add files to a custom repository (requires --repo)
-   del-file  Remove files from a custom repository (requires --repo)
+ See perldoc App::Nrepo for all valid actions and their descriptions
 
- Options:
-   --repo           The name of the repo for your action
-   --checksums      When mirroring a repository use checksums for downloaded packages rather than size
+ Actions:
+   list      List all configured repositories
+   mirror    Mirror a repository
+     requires:
+       --repo (all|$repository_name)
+     optional:
+       --checksums
+   tag       Tag a repository
+     requires:
+       --repo $repository_name
+       --tag  $destination_tag
+     optional:
+       --src-tag $src_tag (defaults to 'head')
+       --symlink (default false)
+   clean     Cleans a repository of unreferenced files
+     requires:
+       --repo (all|$repository_name)
+   init      Initialise a custom repository
+     requires:
+       --repo $repository_name
+   add-file  Add files to a custom repository
+     requires:
+       --repo $repository_name
+       --arch $arch
+       --file $path_to_file (--file can be supplied multiple times)
+   del-file  Remove files from a custom repository
+     requires:
+       --repo $repository_name
+       --arch $arch
+       --file $path_to_file (--file can be supplied multiple times)
+
+ Script Options:
+   --config-file    Path to config-file, defaults to ./conf/nrepo.conf
    --log-level      Change the stdout log level (overrides config)
    --help           This helpful message
 
@@ -112,3 +135,21 @@ nrepo --action X [options]
    2. create a hardlink copy of head to release_20150827
    3. create a symlink of release_20150827 to production
 
+=head1 nrepo.conf Configuration
+
+# Global options:
+
+# data_dir - path to location where repositories files are stored
+data_dir = /path/to/repo_data
+
+# include - you can use this to include other conf files or directories
+include repos.d
+
+# tag_style - (Defaults to bottomdir) This determines if repositories are tagged at a parent or child level
+# eg.
+# topdir would have tags like: $data_dir/$tag/$repo_name
+# bottomdir would have tags like: $data_dir/$repo_name/$tag
+
+# log_file - Path to log output to (No default)
+# log_file_level - At what level you want the log file logged at (defaults to info)
+# screen_level - At what level you want the screen to output at (defaults to notice) this can be overwritten on the cli using --log-level
