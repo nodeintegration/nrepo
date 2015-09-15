@@ -18,9 +18,10 @@ SYNOPSIS
        list      List all configured repositories
        mirror    Mirror a repository
          requires:
-           --repo (all|$repository_name)
+           --repo (all|$regex|$repository_name)
          optional:
            --checksums
+           --regex (uses --repo value as a regex)
        tag       Tag a repository
          requires:
            --repo $repository_name
@@ -30,7 +31,9 @@ SYNOPSIS
            --symlink (default false)
        clean     Cleans a repository of unreferenced files
          requires:
-           --repo (all|$repository_name)
+           --repo (all|$regex|$repository_name)
+         optional:
+           --regex (uses --repo value as a regex)
        init      Initialise a custom repository
          requires:
            --repo $repository_name
