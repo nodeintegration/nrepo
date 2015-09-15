@@ -148,6 +148,15 @@ sub _validate_file_size {
   return $file_size eq $size ? 1 : undef;
 }
 
+sub _validate_file_sha {
+  my $self     = shift;
+  my $file     = shift;
+  my $checksum = shift;
+
+  my $sha = Digest::SHA->new('sha1');
+  $sha->addfile($file);
+  return $sha->hexdigest eq $checksum ? 1 : undef;
+}
 sub _validate_file_sha256 {
   my $self     = shift;
   my $file     = shift;
