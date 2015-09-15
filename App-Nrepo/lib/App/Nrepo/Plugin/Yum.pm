@@ -8,9 +8,12 @@ use Carp;
 use File::Copy qw(copy);
 use File::Find qw(find);
 use File::Basename qw(basename dirname);
+use IO::Zlib;
 use Params::Validate qw(:all);
 use Data::Dumper qw(Dumper);
+use Time::HiRes qw(gettimeofday tv_interval);
 use XML::Twig;
+use XML::LibXML;
 
 # VERSION
 
@@ -67,8 +70,7 @@ sub get_metadata {
 
     # Parse the primary metadata file
     if ($type eq 'primary') {
-      my $contents = $self->get_gzip_contents($dest_file);
-      $packages = $self->parse_primary($contents);
+      $packages = $self->parse_primary($dest_file);
     }
   }
   return $packages;
@@ -100,7 +102,7 @@ sub read_metadata {
       # Parse the primary metadata file
       if ($type eq 'primary') {
         my $contents = $self->get_gzip_contents($dest_file);
-        for my $file (@{$self->parse_primary($contents)}) {
+        for my $file (@{$self->parse_primary($dest_file)}) {
           $files->{$file->{'location'}}++;
         }
       }
@@ -113,6 +115,7 @@ sub parse_repomd {
   my $self = shift;
   my $file = shift;
 
+  # XXX TODO rework this with XML::LibXML as its far faster
   my $twig = XML::Twig->new(TwigRoots => {data => 1});
   $twig->parsefile($file);
 
@@ -152,37 +155,38 @@ sub parse_repomd {
 
   return \@files;
 }
+
 sub parse_primary {
   my $self = shift;
-  my $xml  = shift;
-
+  my $dest_file  = shift;
+  my $io_fh = IO::Zlib->new($dest_file, 'rb');
+  my $xml = XML::LibXML->load_xml( IO => $io_fh );
+  my $t0 = [gettimeofday];
   my $packages = [];
-  my $twig = XML::Twig->new(TwigRoots => {package => 1});
-  $twig->parse($xml);
-  my $root = $twig->root;
-  my @e = $root->children();
-  for my $e (@e) {
-    my $data = {};
-    for my $c ($e->children()) {
-      if ($c->name eq 'location') {
-        $data->{'location'} = $c->att('href');
-      }
-      elsif ($c->name eq 'name') {
-        $data->{'name'} = $c->text;
-      }
-      elsif ($c->name eq 'checksum' && $self->checksums()) {
-        $data->{'validate'}->{'type'} = $c->att('type');
-        $data->{'validate'}->{'value'} = $c->text;
-      }
-      elsif ($c->name eq 'size' && ! $self->checksums()){
-        $data->{'validate'}->{'type'}  = 'size';
-        $data->{'validate'}->{'value'} = $c->att('package');
-      }
-    }
+  for my $p ($xml->getElementsByTagName('package')) {
+    my ($n) = $p->getChildrenByTagName('name');
+    my ($l) = $p->getChildrenByTagName('location');
+    my ($s) = $p->getChildrenByTagName('size');
+    my ($c) = $p->getChildrenByTagName('checksum');
+    my $data = {
+      name     => $n->textContent,
+      location => $l->getAttribute('href'),
+      size     => {
+        type  => 'size',
+        value => $s->getAttribute('package'),
+      },
+      checksum => {
+        type  => $c->getAttribute('type'),
+        value => $c->textContent,
+      },
+    };
     push @{$packages}, $data;
   }
+  my $elapsed = tv_interval($t0);
+  $self->logger->debug(sprintf('parse_primary: file: %s took: %s seconds', $dest_file, $elapsed));
   return $packages;
 }
+
 sub get_packages {
   my $self = shift;
   my %o = validate(@_, {
