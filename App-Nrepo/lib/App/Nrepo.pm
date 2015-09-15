@@ -295,6 +295,10 @@ Options:
 The name of the repository as reflected in the config
 If 'all' is supplied it will perform this action on all repositories in config
 
+=item C<regex>
+
+If this boolean is enabled then use the repo parameter as a regex to match repositories against
+
 =back
 
 =cut
@@ -304,6 +308,7 @@ sub clean {
   my %o = validate(@_, {
     repo  => { type => SCALAR, },
     arch  => { type => SCALAR, optional => 1 },
+    regex => { type => BOOLEAN, optional => 1 },
     force => { type => BOOLEAN, optional => 1, },
   });
 
@@ -312,6 +317,15 @@ sub clean {
     for my $repo (keys %{$self->config->{'repo'}}) {
       $options{'repo'} = $repo;
       $self->_clean(%options);
+    }
+  }
+  elsif ($o{'regex'}) {
+    my %options = %o;
+    for my $repo (keys %{$self->config->{'repo'}}) {
+      if ($repo =~ m#$o{'repo'}#) {
+        $options{'repo'} = $repo;
+        $self->_clean(%options);
+      }
     }
   }
   else {
@@ -417,6 +431,10 @@ By default we just use the manifests information about size of packages to deter
 is valid. If you want to have checksums used enable this boolean flag.
 With this enabled updating a mirror can take quite a long time
 
+=item C<regex>
+
+If this boolean is enabled then use the repo parameter as a regex to match repositories against
+
 =back
 
 =cut
@@ -428,6 +446,7 @@ sub mirror {
     'force'     => { type => BOOLEAN, default => 0 },
     'arch'      => { type => SCALAR, optional => 1 },
     'checksums' => { type => SCALAR, optional => 1 },
+    'regex'     => { type => BOOLEAN, optional => 1 },
   });
 
   if ($o{'repo'} eq 'all') {
@@ -435,6 +454,15 @@ sub mirror {
     for my $repo (keys %{$self->config->{'repo'}}) {
       $options{'repo'} = $repo;
       $self->_mirror(%options);
+    }
+  }
+  elsif ($o{'regex'}) {
+    my %options = %o;
+    for my $repo (keys %{$self->config->{'repo'}}) {
+      if ($repo =~ m#$o{'repo'}#) {
+        $options{'repo'} = $repo;
+        $self->_mirror(%options);
+      }
     }
   }
   else {

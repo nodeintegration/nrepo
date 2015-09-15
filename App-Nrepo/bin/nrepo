@@ -26,6 +26,7 @@ GetOptions(
   'checksums' => \$app_options->{'checksums'},
   'force'     => \$app_options->{'force'},
   'repo=s'    => \$app_options->{'repo'},
+  'regex'     => \$app_options->{'regex'},
   'tag=s'     => \$app_options->{'tag'},
   'src-tag=s' => \$app_options->{'src-tag'},
   'symlink'   => \$app_options->{'symlink'},
@@ -100,9 +101,10 @@ nrepo --action X [options]
    list      List all configured repositories
    mirror    Mirror a repository
      requires:
-       --repo (all|$repository_name)
+       --repo (all|$regex|$repository_name)
      optional:
        --checksums
+       --regex (uses --repo value as a regex)
    tag       Tag a repository
      requires:
        --repo $repository_name
@@ -112,7 +114,9 @@ nrepo --action X [options]
        --symlink (default false)
    clean     Cleans a repository of unreferenced files
      requires:
-       --repo (all|$repository_name)
+       --repo (all|$regex|$repository_name)
+     optional:
+       --regex (uses --repo value as a regex)
    init      Initialise a custom repository
      requires:
        --repo $repository_name
