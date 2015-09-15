@@ -180,6 +180,12 @@ sub parse_primary {
         value => $c->textContent,
       },
     };
+    if ($self->force() &! $self->checksums()) {
+      $data->{'validate'} = $data->{'size'};
+    }
+    else {
+      $data->{'validate'} = $data->{'checksum'};
+    }
     push @{$packages}, $data;
   }
   my $elapsed = tv_interval($t0);

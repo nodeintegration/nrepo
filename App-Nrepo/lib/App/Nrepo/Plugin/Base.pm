@@ -132,6 +132,9 @@ sub validate_file {
   elsif ($o{'check'} eq 'sha256') {
     return $self->_validate_file_sha256($o{'filename'}, $o{'value'});
   }
+  else {
+    $self->logger->log_and_croak(level => 'error', message => "unknown validation check type: $o{'check'}");
+  }
 }
 
 sub _validate_file_size {
