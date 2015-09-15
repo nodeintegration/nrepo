@@ -158,6 +158,11 @@ include repos.d
 # topdir would have tags like: $data_dir/$tag/$repo_name
 # bottomdir would have tags like: $data_dir/$repo_name/$tag
 
+#hard_tag_regex - When someone creates a hard tag of a repository the destination tag must match this regex (No default)
+# This can be per repo and/or global. it will use the per repo value first
+# ie I want them as: release_YYYYMMDD
+#hard_tag_regex = ^release_\d{8}$
+
 # log_file - Path to log output to (No default)
 # log_file_level - At what level you want the log file logged at (defaults to info)
 # screen_level - At what level you want the screen to output at (defaults to notice) this can be overwritten on the cli using --log-level

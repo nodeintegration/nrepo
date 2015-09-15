@@ -528,11 +528,12 @@ sub tag {
   );
 
   $plugin->tag(
-    src_dir  => $self->_get_repo_dir(repo => $o{'repo'}, tag => $o{'src-tag'}),
-    src_tag  => $o{'src-tag'},
-    dest_dir => $self->_get_repo_dir(repo => $o{'repo'}, tag => $o{'tag'}),
-    dest_tag => $o{'tag'},
-    symlink  => $o{'symlink'},
+    src_dir        => $self->_get_repo_dir(repo => $o{'repo'}, tag => $o{'src-tag'}),
+    src_tag        => $o{'src-tag'},
+    dest_dir       => $self->_get_repo_dir(repo => $o{'repo'}, tag => $o{'tag'}),
+    dest_tag       => $o{'tag'},
+    symlink        => $o{'symlink'},
+    hard_tag_regex => $self->config->{'repo'}->{'hard_tag_regex'} || $self->config->{'hard_tag_regex'},
   );
 }
 

@@ -5,6 +5,7 @@ use Moo::Role;
 use strictures 2;
 use namespace::clean;
 
+use App::Nrepo::Logger;
 use Carp;
 use Data::Dumper;
 use Digest::SHA;
@@ -17,7 +18,6 @@ use Module::Path qw[ module_path ];
 use Module::Runtime qw[ compose_module_name ];
 use Params::Validate qw(:all);
 use Time::HiRes qw(gettimeofday tv_interval);
-use App::Nrepo::Logger;
 
 
 # VERSION
@@ -210,14 +210,23 @@ sub init {
 sub tag {
   my $self = shift;
   my %o = validate(@_, {
-    src_tag  => { type => SCALAR },
-    src_dir  => { type => SCALAR },
-    dest_tag => { type => SCALAR },
-    dest_dir => { type => SCALAR },
-    symlink  => { type => BOOLEAN, default => 0 },
+    src_tag        => { type => SCALAR },
+    src_dir        => { type => SCALAR },
+    dest_tag       => { type => SCALAR },
+    dest_dir       => { type => SCALAR },
+    symlink        => { type => BOOLEAN, default => 0 },
+    hard_tag_regex => { type => SCALAR, optional => 1 },
   });
 
   $self->logger->debug(sprintf('tag: repo: %s tagging: %s -> %s', $self->repo(), $o{'src_dir'}, $o{'dest_dir'}));
+
+  # Make sure intended tag matches what we want if present
+  if ($o{'hard_tag_regex'} && ! $o{'symlink'}) {
+    $self->logger->log_and_die(
+      level   => 'error',
+      message => sprintf("tag: repo: %s dest_tag: %s does not match hard_tag_regex: %s", $self->repo(), $o{'dest_tag'}, $o{'hard_tag_regex'}),
+    ) unless $o{'dest_tag'} =~ m#$o{'hard_tag_regex'}#;
+  }
 
   # When src_dir does not exist do not continue
   $self->logger->log_and_die(
