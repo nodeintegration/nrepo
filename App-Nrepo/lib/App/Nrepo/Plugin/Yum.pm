@@ -180,7 +180,7 @@ sub parse_primary {
         value => $c->textContent,
       },
     };
-    if ($self->force() &! $self->checksums()) {
+    if (! $self->checksums() && $data->{'size'}) {
       $data->{'validate'} = $data->{'size'};
     }
     else {
