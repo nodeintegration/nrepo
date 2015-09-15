@@ -128,6 +128,10 @@ sub validate_file {
   if ($o{'check'} eq 'size') {
     return $self->_validate_file_size($o{'filename'}, $o{'value'});
   }
+  # Check against sha
+  elsif ($o{'check'} eq 'sha') {
+    return $self->_validate_file_sha($o{'filename'}, $o{'value'});
+  }
   # Check against sha256
   elsif ($o{'check'} eq 'sha256') {
     return $self->_validate_file_sha256($o{'filename'}, $o{'value'});
