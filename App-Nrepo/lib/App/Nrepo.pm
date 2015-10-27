@@ -20,45 +20,64 @@ use App::Nrepo::Logger;
 has config => ( is => 'ro' );
 has logger => ( is => 'ro', default => sub {App::Nrepo::Logger->new()} );
 
-=head1 NAME
+=head1 DESCRIPTION
 
 App::Nrepo - An application to handle management of various software repositories
 This module is purely to designed to be used with the accompanying script bin/nrepo
 Please look at its pod for instantiating of this Module
 
-=head2 Methods
+=head2 SYNOPSIS
+
+  my $o = App::Nrepo->new(
+    config => $hashref,
+    logger => Log::Dispatch->new()
+  );
+
+  $o->go($action, %options);
+
+=head2 METHODS
 
 =over 4
 
 =cut
 
+=item B<go()>
 
-=item C<go>
+Perform the supplied action with options
 
-Entry point for this object
-my $o = App::Nrepo->new(config => $hashref, logger => Log::Dispatch->new());
-$o->go($action, %options);
 Valid actions:
 
 =over 4
 
-=item C<add-file>
+=item B<add-file>
 
-=item C<del-file>
+Used to add file/s to a local repository see  L</"add_file()">
 
-=item C<clean>
+=item B<del-file>
 
-=item C<init>
+Used to delete file/s from a local repository see L</"del_file()">
 
-=item C<list>
+=item B<clean>
 
-=item C<mirror>
+Used to clean a repository of no longer referenced files eg: no longer reference package versions or manifest files see L</"clean()"> 
 
-=item C<tag>
+=item B<init>
+
+Used to initialise manifests for a local repository see L<"init()">
+
+=item B<list>
+
+Used to list configured repositories see L<"list()">
+
+=item B<mirror>
+
+Used to update a repository from its configured mirror see L<"mirror()">
+
+=item B<tag>
+
+Tag a repository state see L<"tag()">
 
 =back
-
-For each actions required options see its appropriate method below
 
 =cut
 
@@ -90,30 +109,39 @@ sub _validate_config {
   # If data_dir is relative, lets expand it based on cwd
   $self->config->{'data_dir'} = File::Spec->rel2abs($self->config->{data_dir});
 
+  # Make sure data_dir exists
   $self->logger->log_and_croak(
     level   => 'error',
     message => sprintf "datadir does not exist: %s", $self->config->{data_dir},
   ) unless -d $self->config->{data_dir};
 
+  # Ensure tag style option is valid
   $self->logger->log_and_croak(
     level   => 'error',
     message => sprintf "Unknown tag_style %s, must be topdir or bottomdir\n", $self->config->{tag_style},
   ) unless $self->config->{tag_style} =~ m/^(?:top|bottom)dir$/;
 
-  # required params for reposrc-tag
+  # required params for each repo config
   for my $repo (sort keys %{$self->config->{'repo'}}) {
+
+    #type local and arch are required params for ALL repos
     for my $param (qw/type local arch/) {
       $self->logger->log_and_croak(
         level   => 'error',
         message => sprintf "repo: %s missing param: %s", $repo, $param,
       ) unless $self->config->{repo}->{$repo}->{$param};
-      # Data validation for specific type
+
+      # Data validation for specific types
+
+      # Unfortunately Config::General does not allow us to make sure an option is always an array, so force it to an array
       if ($param eq 'arch') {
         # We allow identical options which we use for arch, lets end up with an array regardless
         my $arch = $self->config->{'repo'}->{$repo}->{'arch'};
         my $arches = ref($arch) eq 'ARRAY' ? $arch : [$arch];
         $self->config->{'repo'}->{$repo}->{'arch'} = $arches;
       }
+
+      # Allowed types
       elsif ($param eq 'type') {
         unless (
           $self->config->{repo}->{$repo}->{$param} eq 'Yum' ||
@@ -173,7 +201,7 @@ sub _get_repo_dir {
   }
 }
 
-=item C<add_file>
+=item B<add_file()>
 
 Action: add-file
 
@@ -183,19 +211,19 @@ Options:
 
 =over 4
 
-=item C<repo>
+=item repo
 
 The name of the repository as reflected in the config
 
-=item C<arch>
+=item arch
 
 The arch this package should be added to as reflected in the config
 
-=item C<file>
+=item file
 
 The path of the file to be added to the repository
 
-=item C<force>
+=item force
 
 Boolean to enable force overwriting an existing file in the repository
 
@@ -229,7 +257,7 @@ sub add_file {
   $plugin->add_file($o{'arch'}, $o{'file'});
 }
 
-=item C<del_file>
+=item B<del_file()>
 
 Action: del-file
 
@@ -239,15 +267,15 @@ Options:
 
 =over 4
 
-=item C<repo>
+=item repo
 
 The name of the repository as reflected in the config
 
-=item C<arch>
+=item arch
 
 The arch this package should be removed from as reflected in the config
 
-=item C<file>
+=item file
 
 The filename to be removed to the repository
 
@@ -280,7 +308,7 @@ sub del_file {
   $plugin->del_file($o{'arch'}, $o{'file'});
 }
 
-=item C<clean>
+=item B<clean()>
 
 Action: clean
 
@@ -290,12 +318,12 @@ Options:
 
 =over 4
 
-=item C<repo>
+=item repo
 
 The name of the repository as reflected in the config
 If 'all' is supplied it will perform this action on all repositories in config
 
-=item C<regex>
+=item regex
 
 If this boolean is enabled then use the repo parameter as a regex to match repositories against
 
@@ -351,7 +379,7 @@ sub _clean {
   $plugin->clean();
 }
 
-=item C<init>
+=item B<init()>
 
 Action: init
 
@@ -361,9 +389,13 @@ Options:
 
 =over 4
 
-=item C<repo>
+=item repo
 
 The name of the repository as reflected in the config
+
+=item arch
+
+Rather than initialising all arches configured, just do this one
 
 =back
 
@@ -376,22 +408,32 @@ sub init {
     arch => { type => SCALAR, optional => 1 },
   });
 
+  my $repo_config = $self->config->{'repo'}->{$o{'repo'}};
+
+  # Initialising a mirrored repo will result in different manifests to what the mirror has
+  if ($repo_config->{'url'}) {
+    $self->logger->log_and_croak(
+      level => 'error',
+      message => 'init: this is action is only valid for local repositories...this repo has a url specified',
+    );
+  }
+
   my $options = {
     repo      => $o{'repo'},
-    arches    => $self->config->{'repo'}->{$o{'repo'}}->{'arch'},
-    backend   => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
+    arches    => $repo_config->{'arch'},
+    backend   => $repo_config->{'type'},
     dir       => $self->_get_repo_dir(repo => $o{'repo'}),
   };
 
   my $plugin = $self->_get_plugin(
-    type    => $self->config->{'repo'}->{$o{'repo'}}->{'type'},
+    type    => $repo_config->{'type'},
     options => $options,
   );
 
   $plugin->init($o{'arch'});
 }
 
-=item C<list>
+=item B<list()>
 
 Action: list
 
@@ -410,7 +452,7 @@ sub list {
   }
 }
 
-=item C<mirror>
+=item B<mirror()>
 
 Action: mirror
 
@@ -420,18 +462,18 @@ Options:
 
 =over 4
 
-=item C<repo>
+=item repo
 
 The name of the repository as reflected in the config
 If 'all' is supplied it will perform this action on all repositories in config
 
-=item C<checksums>
+=item checksums
 
 By default we just use the manifests information about size of packages to determine if the local file
 is valid. If you want to have checksums used enable this boolean flag.
 With this enabled updating a mirror can take quite a long time
 
-=item C<regex>
+=item regex
 
 If this boolean is enabled then use the repo parameter as a regex to match repositories against
 
@@ -492,7 +534,7 @@ sub _mirror {
   $plugin->mirror();
 }
 
-=item C<tag>
+=item B<tag()>
 
 Action: tag
 
@@ -502,26 +544,26 @@ Options:
 
 =over 4
 
-=item C<repo>
+=item repo
 
 The name of the repository as reflected in the config
 
-=item C<src-tag>
+=item src-tag
 
 The source tag to use for this operation, by default this is 'head'
 The source tag must pre exist.
 
-=item C<dest-tag>
+=item dest-tag
 
 The destination tag to use for this operation.
 
-=item C<symlink>
+=item symlink
 
 This will make the link operation use a symlink instead of hardlinking
 For example you may tag every time you update from upstream but you move a production tag around...provides easy roll back
 for your clients package configuration
 
-=item C<force>
+=item force
 
 Force will overwrite a pre existing dest-tag location
 
